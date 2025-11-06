@@ -43,14 +43,18 @@ async def chat(request: ChatRequest):
         raise HTTPException(status_code=400, detail="Message cannot be empty")
     
     try:
-        # Call Ollama API
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        # Call Ollama API with optimized parameters for faster responses
+        async with httpx.AsyncClient(timeout=25.0) as client:
             response = await client.post(
                 f"{OLLAMA_URL}/api/generate",
                 json={
                     "model": OLLAMA_MODEL,
                     "prompt": request.message,
-                    "stream": False
+                    "stream": False,
+                    "options": {
+                        "num_predict": 150,  # Limit response length for faster generation
+                        "temperature": 0.7,   # Lower temperature for more focused responses
+                    }
                 }
             )
             
