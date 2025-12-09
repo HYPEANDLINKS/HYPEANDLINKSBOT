@@ -1,4 +1,4 @@
-# xp7k
+# App
 
 This is a monorepo containing multiple services.
 
