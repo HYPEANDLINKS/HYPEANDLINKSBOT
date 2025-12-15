@@ -1,4 +1,4 @@
-# q1cbbot
+![I TECHS IMBAL!!!!!!!!1111111](https://raw.githubusercontent.com/TECHSYMBAL/TECHSYMBALBOT/refs/heads/main/TECHSYMBAL%20(8).png)
 
 This is a monorepo containing multiple services.
 
