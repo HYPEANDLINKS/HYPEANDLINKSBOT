@@ -1,8 +1,13 @@
 <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-<path d="M32 0V32H0V0H32ZM2 30H30V2H2V30Z" fill="white"/>
-<path d="M8 8H12V12H8V8Z" fill="white"/>
-<path d="M20 10C20 8.89543 20.8954 8 22 8V8C23.1046 8 24 8.89543 24 10V10C24 11.1046 23.1046 12 22 12V12C20.8954 12 20 11.1046 20 10V10Z" fill="white"/>
-<path d="M18 18L16 14L14 18H18Z" fill="white"/>
-<path d="M8 22H24V24H8V22Z" fill="white"/>
-<path d="M24 24H8V22H24V24Z" fill="white"/>
+<path d="M32 0H0V32H32V0Z" fill="#111111"/>
+<mask id="mask0_1159_596" style="mask-type:alpha" maskUnits="userSpaceOnUse" x="0" y="0" width="32" height="32">
+<path d="M16 32C24.8366 32 32 24.8366 32 16C32 7.16344 24.8366 0 16 0C7.16344 0 0 7.16344 0 16C0 24.8366 7.16344 32 16 32Z" fill="white"/>
+</mask>
+<g mask="url(#mask0_1159_596)">
+<path d="M22 12.64V4L16 11.6807L19.3746 16.0006L22 12.64Z" fill="#1AFF11"/>
+<path d="M10 19.3586V27.9986L15.8381 20.5258L12.5545 16.0889L10 19.3586Z" fill="#1AFF11"/>
+<path d="M27.9978 4H21.9978V12.64V19.3614L19.3724 16.0006L15.8359 20.5272L21.3662 28H27.9978V4Z" fill="white"/>
+<path fill-rule="evenodd" clip-rule="evenodd" d="M12.5545 16.0903L10 12.6386V19.36V28H4V4H10L16 11.6807L12.5545 16.0903Z" fill="white"/>
+<path d="M19.3728 15.9986L15.9982 11.6787L12.5527 16.0883L15.8363 20.5252L19.3728 15.9986Z" fill="white"/>
+</g>
 </svg>

@@ -1,11 +1,11 @@
 {
-  "name": "Telegram Mini App",
-  "short_name": "Mini App",
+  "name": "Hype N' Links",
+  "short_name": "HYPE AND LINKS TELEGRAM MINI APP",
   "start_url": ".",
   "display": "standalone",
   "background_color": "#000000",
   "theme_color": "#000000",
-  "description": "A simple Telegram Mini App built with Flutter",
+  "description": "Get hype and send links, lol!",
   "orientation": "portrait-primary",
   "icons": [
     {

@@ -483,17 +483,30 @@ class TelegramWebApp {
   }
 
   /// Listen to theme changes
+  /// When themeChanged event fires, the WebApp object already has updated colorScheme and themeParams
   void onThemeChanged(Function() callback) {
     try {
       final app = webApp;
-      if (app == null) return;
+      if (app == null) {
+        print('Cannot set up theme changed listener: WebApp is not available');
+        return;
+      }
 
       final onEvent = app['onEvent'];
       if (onEvent is js.JsFunction) {
         onEvent.apply([
           'themeChanged',
-          js.allowInterop((_) => callback())
+          js.allowInterop((_) {
+            // When this callback fires, the WebApp object (this) already has the new theme
+            // Force refresh the cached _webApp to ensure we read the latest values
+            _webApp = null;
+            print('Theme changed event fired in TelegramWebApp');
+            callback();
+          })
         ]);
+        print('Theme changed listener registered successfully');
+      } else {
+        print('onEvent is not available in WebApp');
       }
     } catch (e) {
       print('Error setting up theme changed listener: $e');

@@ -1,5 +1,5 @@
-name: telegram_mini_app
-description: A simple Telegram Mini App built with Flutter
+name: hype_and_links
+description: HYPE AND LINKS TELEGRAM MINI APP
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -28,8 +28,9 @@ flutter:
     - assets/images/
     - assets/icons/
     - assets/icons/menu/
+    - assets/icons/menudva/
     - assets/sample/
-    - .env
+    - assets/sample/mak/
   
   # Fonts configuration
   fonts:
