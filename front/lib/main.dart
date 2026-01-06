@@ -1551,7 +1551,7 @@ class _GlobalBottomBarState extends State<GlobalBottomBar> {
             top: false,
             child: Center(
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 630),
+                constraints: const BoxConstraints(maxWidth: 600),
                 child: Padding(
                   padding: const EdgeInsets.only(left: 15, right: 15),
                   child: Row(
@@ -1984,7 +1984,7 @@ class _SimpleMainPageState extends State<SimpleMainPage>
                     child: Align(
                       alignment: Alignment.topCenter,
                       child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 600),
+                        constraints: const BoxConstraints(maxWidth: 570),
                         child: SingleChildScrollView(
                           controller: _mainScrollController,
                           child: Column(
