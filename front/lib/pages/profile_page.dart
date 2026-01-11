@@ -104,7 +104,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                     child: Align(
                                       alignment: Alignment.centerLeft,
                                       child: Text(
-                                        'Wallet 1',
+                                        'Sendal Rodriges',
                                         style: TextStyle(
                                           fontFamily: 'Aeroport',
                                           fontSize: 15,
@@ -119,6 +119,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                       ),
                                     ),
                                   ),
+                                  const SizedBox(height: 5),
                                   SizedBox(
                                     height: 20,
                                     child: Align(
@@ -175,6 +176,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                     ),
                                   ),
                                 ),
+                                const SizedBox(height: 5),
                                 SizedBox(
                                   height: 20,
                                   child: Align(

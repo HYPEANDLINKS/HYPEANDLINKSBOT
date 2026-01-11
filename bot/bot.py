@@ -124,7 +124,7 @@ async def hello(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     await update.message.reply_text(
-        f"Hello, {update.effective_user.first_name}. I'm xp7k, proceed to the app or ask me anything",
+        f"Hello, {update.effective_user.first_name}. That's Hype And Links, tap to enter",
         reply_markup=reply_markup
     )
 
@@ -269,7 +269,7 @@ async def post_init(app):
         print("Bot will continue but user data won't be saved")
 
 
-async def shutdown():
+async def shutdown(app):
     """Close database pool on shutdown"""
     global _db_pool
     if _db_pool:
