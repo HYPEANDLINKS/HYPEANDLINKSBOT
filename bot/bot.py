@@ -146,7 +146,7 @@ async def save_message(telegram_id: int, role: str, content: str):
         print(f"Error saving message to database: {e}")
 
 
-async def get_conversation_history(telegram_id: int, limit: int = 20) -> list:
+async def get_conversation_history(telegram_id: int, limit: int = 5) -> list:
     """
     Retrieve conversation history for a specific user (separated by telegram_id)
     Each user's conversation is stored and fetched independently
@@ -366,7 +366,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     telegram_id = update.effective_user.id
     
     # Retrieve conversation history (before saving current message)
-    history = await get_conversation_history(telegram_id, limit=20)
+    history = await get_conversation_history(telegram_id, limit=5)
     
     # Build messages array according to Ollama API spec
     # Start with system message if no history exists

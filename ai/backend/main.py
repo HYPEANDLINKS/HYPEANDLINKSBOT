@@ -1,8 +1,8 @@
 from fastapi import FastAPI, HTTPException, Header, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
-from typing import Optional, List, Dict
+from pydantic import BaseModel, Field
+from typing import Optional, List, Dict, Any, Union, Literal
 import httpx
 import os
 import json
@@ -46,8 +46,39 @@ def verify_api_key(x_api_key: Optional[str] = Header(None, alias="X-API-Key")):
     return x_api_key
 
 
+class ChatMessage(BaseModel):
+    """Individual chat message following Ollama ChatMessage format"""
+    role: Literal["system", "user", "assistant", "tool"] = Field(..., description="Author of the message")
+    content: str = Field(..., description="Message text content")
+    images: Optional[List[str]] = Field(default=None, description="Optional list of inline images for multimodal models")
+    tool_calls: Optional[List[Dict[str, Any]]] = Field(default=None, description="Tool call requests produced by the model")
+
+
+class ModelOptions(BaseModel):
+    """Runtime options that control text generation"""
+    seed: Optional[int] = None
+    temperature: Optional[float] = None
+    top_k: Optional[int] = None
+    top_p: Optional[float] = None
+    min_p: Optional[float] = None
+    stop: Optional[Union[str, List[str]]] = None
+    num_ctx: Optional[int] = None
+    num_predict: Optional[int] = None
+    num_thread: Optional[int] = None  # Custom field for backward compatibility
+
+
 class ChatRequest(BaseModel):
-    messages: List[Dict[str, str]]  # Array of ChatMessage objects with role and content
+    """Chat request following Ollama API spec"""
+    model: Optional[str] = Field(default=None, description="Model name (uses OLLAMA_MODEL env var if not provided)")
+    messages: List[ChatMessage] = Field(..., description="Chat history as an array of message objects")
+    tools: Optional[List[Dict[str, Any]]] = Field(default=None, description="Optional list of function tools the model may call")
+    format: Optional[Union[str, Dict[str, Any]]] = Field(default=None, description="Format to return a response in. Can be 'json' or a JSON schema")
+    options: Optional[ModelOptions] = Field(default=None, description="Runtime options that control text generation")
+    stream: bool = Field(default=True, description="Enable streaming response")
+    think: Optional[Union[bool, str]] = Field(default=None, description="When true, returns separate thinking output. Can be boolean or 'high', 'medium', 'low'")
+    keep_alive: Optional[Union[str, int]] = Field(default=None, description="Model keep-alive duration (e.g., '5m' or 0)")
+    logprobs: Optional[bool] = Field(default=None, description="Whether to return log probabilities of the output tokens")
+    top_logprobs: Optional[int] = Field(default=None, description="Number of most likely tokens to return at each token position when logprobs are enabled")
 
 
 @app.get("/")
@@ -58,29 +89,63 @@ async def root():
 @app.post("/api/chat")
 async def chat(request: ChatRequest, api_key: str = Depends(verify_api_key)):
     """
-    Send messages array to Ollama /api/chat and return streaming AI response
+    Generate a chat message following Ollama API spec
     Requires valid API key in X-API-Key header
-    Messages format: [{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}]
     """
     if not request.messages or len(request.messages) == 0:
         raise HTTPException(status_code=400, detail="Messages array cannot be empty")
     
-    # Validate messages format according to Ollama ChatMessage spec
-    validated_messages = []
-    for msg in request.messages:
-        if not isinstance(msg, dict):
-            continue
-        role = msg.get("role", "")
-        content = msg.get("content", "")
-        # Validate role matches Ollama spec: system, user, assistant, tool
-        if role in ["system", "user", "assistant", "tool"] and content:
-            validated_messages.append({
-                "role": role,
-                "content": str(content).strip()
-            })
+    # Use provided model or fall back to environment variable default
+    model = request.model or OLLAMA_MODEL
     
-    if len(validated_messages) == 0:
-        raise HTTPException(status_code=400, detail="No valid messages found")
+    # Convert ChatMessage objects to dicts for Ollama API
+    # According to Ollama API spec, messages must have role and content (both required)
+    messages_dict = []
+    for msg in request.messages:
+        msg_dict = {
+            "role": msg.role,
+            "content": msg.content
+        }
+        # Add optional fields if present
+        if msg.images:
+            msg_dict["images"] = msg.images
+        if msg.tool_calls:
+            msg_dict["tool_calls"] = msg.tool_calls
+        messages_dict.append(msg_dict)
+    
+    # Build request body for Ollama API
+    ollama_request = {
+        "model": model,
+        "messages": messages_dict,
+        "stream": request.stream,
+    }
+    
+    # Add optional fields if present
+    if request.tools:
+        ollama_request["tools"] = request.tools
+    if request.format:
+        ollama_request["format"] = request.format
+    # Handle options - use provided options or defaults for backward compatibility
+    if request.options:
+        # Convert ModelOptions to dict, excluding None values
+        options_dict = request.options.model_dump(exclude_none=True)
+        if options_dict:
+            ollama_request["options"] = options_dict
+    else:
+        # Default options for backward compatibility with existing clients
+        ollama_request["options"] = {
+            "num_predict": 1000,
+            "temperature": 0.7,
+            "num_thread": 2,
+        }
+    if request.think is not None:
+        ollama_request["think"] = request.think
+    if request.keep_alive is not None:
+        ollama_request["keep_alive"] = request.keep_alive
+    if request.logprobs is not None:
+        ollama_request["logprobs"] = request.logprobs
+    if request.top_logprobs is not None:
+        ollama_request["top_logprobs"] = request.top_logprobs
     
     async def generate_response():
         try:
@@ -89,16 +154,7 @@ async def chat(request: ChatRequest, api_key: str = Depends(verify_api_key)):
                 async with client.stream(
                     "POST",
                     f"{OLLAMA_URL}/api/chat",
-                    json={
-                        "model": OLLAMA_MODEL,
-                        "messages": validated_messages,  # Send messages array as per Ollama API spec
-                        "stream": True,  # Enable streaming
-                        "options": {
-                            "num_predict": 1000,  # Maximum tokens to generate
-                            "temperature": 0.7,
-                            "num_thread": 2,
-                        }
-                    }
+                    json=ollama_request
                 ) as response:
                     if response.status_code != 200:
                         error_detail = "Unknown error"

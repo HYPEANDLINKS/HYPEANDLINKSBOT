@@ -120,7 +120,7 @@ class _GlobalBottomBarState extends State<GlobalBottomBar> {
                               hintText: (_isFocused ||
                                       _controller.text.isNotEmpty)
                                   ? null
-                                  : 'AI AND SEARCH',
+                                  : 'AI & Search',
                               hintStyle: TextStyle(
                                   color: AppTheme.textColor,
                                   fontFamily: 'Aeroport',
@@ -173,7 +173,7 @@ class _GlobalBottomBarState extends State<GlobalBottomBar> {
                               hintText: (_isFocused ||
                                       _controller.text.isNotEmpty)
                                   ? null
-                                  : 'AI AND SEARCH',
+                                  : 'AI & Search',
                               hintStyle: TextStyle(
                                   color: AppTheme.textColor,
                                   fontFamily: 'Aeroport',
