@@ -34,6 +34,23 @@ class GlobalBottomBar extends StatefulWidget {
       );
     }
   }
+
+  // Static method to get the bottom bar height including padding and SafeArea
+  // Container padding: top: 10, bottom: 15 (total 25px)
+  // TextField minHeight: 30px
+  // SafeArea bottom padding is added by the caller using MediaQuery
+  static double getBottomBarHeight(BuildContext? context) {
+    // Base height: container padding (10 + 15) + TextField minHeight (30)
+    double baseHeight = 10.0 + 30.0 + 15.0;
+    
+    // Add SafeArea bottom padding if context is available
+    if (context != null) {
+      final mediaQuery = MediaQuery.of(context);
+      baseHeight += mediaQuery.padding.bottom;
+    }
+    
+    return baseHeight;
+  }
 }
 
 class _GlobalBottomBarState extends State<GlobalBottomBar> {
@@ -103,8 +120,12 @@ class _GlobalBottomBarState extends State<GlobalBottomBar> {
 
   @override
   Widget build(BuildContext context) {
+    // Get keyboard height from MediaQuery viewInsets
+    final mediaQuery = MediaQuery.of(context);
+    final keyboardHeight = mediaQuery.viewInsets.bottom;
+    
     return Positioned(
-      bottom: 0,
+      bottom: keyboardHeight,
       left: 0,
       right: 0,
       child: Material(

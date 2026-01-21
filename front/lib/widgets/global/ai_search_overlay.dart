@@ -23,6 +23,9 @@ class _AiSearchOverlayState extends State<AiSearchOverlay> {
 
   // Store the callback reference for cleanup
   Function()? _backButtonCallback;
+  
+  // Track if keyboard has been opened (to show options after layout stabilizes)
+  bool _keyboardOpened = false;
 
   @override
   void initState() {
@@ -65,10 +68,6 @@ class _AiSearchOverlayState extends State<AiSearchOverlay> {
     // Don't unfocus here - let user decide when to submit
   }
 
-  void _onCloseTap() {
-    GlobalBottomBar.unfocusInput();
-  }
-
   void _onOverlayTap() {
     // Close overlay when tapping outside options
     GlobalBottomBar.unfocusInput();
@@ -77,15 +76,48 @@ class _AiSearchOverlayState extends State<AiSearchOverlay> {
   @override
   Widget build(BuildContext context) {
     final logoBarHeight = GlobalLogoBar.getLogoBlockHeight();
-    final bottomBarHeight = 60.0; // Approximate height of bottom bar
-    final telegramWebApp = TelegramWebApp();
-    final isInTelegram = telegramWebApp.isActuallyInTelegram;
+    // Get actual bottom bar height including padding and SafeArea
+    final bottomBarHeight = GlobalBottomBar.getBottomBarHeight(context);
+    
+    // Get keyboard height from MediaQuery viewInsets
+    final mediaQuery = MediaQuery.of(context);
+    final keyboardHeight = mediaQuery.viewInsets.bottom;
+    
+    // Update keyboard state when keyboard opens/closes
+    final wasKeyboardOpened = _keyboardOpened;
+    if (keyboardHeight > 10) {
+      if (!_keyboardOpened) {
+        // Use a small delay to ensure layout is stable before showing options
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && MediaQuery.of(context).viewInsets.bottom > 10) {
+            setState(() {
+              _keyboardOpened = true;
+            });
+          }
+        });
+      }
+    } else {
+      if (_keyboardOpened) {
+        // Reset when keyboard closes
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            setState(() {
+              _keyboardOpened = false;
+            });
+          }
+        });
+      }
+    }
+    
+    // Show options after keyboard has been detected as open
+    // Also show if keyboard height is detected (for immediate feedback)
+    final shouldShowOptions = _keyboardOpened || keyboardHeight > 10;
 
     return Positioned(
       top: logoBarHeight,
       left: 0,
       right: 0,
-      bottom: bottomBarHeight,
+      bottom: bottomBarHeight + keyboardHeight,
       child: GestureDetector(
         onTap: _onOverlayTap,
         behavior: HitTestBehavior.translucent,
@@ -100,92 +132,44 @@ class _AiSearchOverlayState extends State<AiSearchOverlay> {
               bottom: false,
               child: Stack(
                 children: [
-                  // Close button in top-left (only in Telegram)
-                  if (isInTelegram)
-                    Positioned(
-                      top: 15,
-                      left: 15,
+                  // Premade input options centered (only shown after keyboard opens)
+                  if (shouldShowOptions)
+                    Center(
                       child: ConstrainedBox(
                         constraints: const BoxConstraints(maxWidth: 600),
-                        child: Container(
-                          width: double.infinity,
+                        child: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 15),
                           child: GestureDetector(
-                            onTap: _onCloseTap,
+                            onTap: () {}, // Prevent tap from propagating to overlay
                             behavior: HitTestBehavior.opaque,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                color: AppTheme.isLightTheme
-                                    ? Colors.grey[200]
-                                    : Colors.grey[800],
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    Icons.close,
-                                    size: 16,
-                                    color: AppTheme.textColor,
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    'Close',
-                                    style: TextStyle(
-                                      fontFamily: 'Aeroport',
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w500,
-                                      color: AppTheme.textColor,
-                                    ),
-                                  ),
-                                ],
-                              ),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                // Premade input options
+                                ..._premadeOptions.map((option) => Padding(
+                                      padding: const EdgeInsets.only(bottom: 20),
+                                      child: GestureDetector(
+                                        onTap: () => _onOptionTap(option),
+                                        behavior: HitTestBehavior.opaque,
+                                        child: Text(
+                                          option,
+                                          textAlign: TextAlign.center,
+                                          style: TextStyle(
+                                            fontFamily: 'Aeroport',
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.w500,
+                                            color: AppTheme.textColor,
+                                          ),
+                                        ),
+                                      ),
+                                    )),
+                              ],
                             ),
                           ),
                         ),
                       ),
                     ),
-                  // Premade input options centered
-                  Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 600),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 15),
-                        child: GestureDetector(
-                          onTap: () {}, // Prevent tap from propagating to overlay
-                          behavior: HitTestBehavior.opaque,
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              // Premade input options
-                              ..._premadeOptions.map((option) => Padding(
-                                    padding: const EdgeInsets.only(bottom: 20),
-                                    child: GestureDetector(
-                                      onTap: () => _onOptionTap(option),
-                                      behavior: HitTestBehavior.opaque,
-                                      child: Text(
-                                        option,
-                                        textAlign: TextAlign.center,
-                                        style: TextStyle(
-                                          fontFamily: 'Aeroport',
-                                          fontSize: 15,
-                                          fontWeight: FontWeight.w500,
-                                          color: AppTheme.textColor,
-                                        ),
-                                      ),
-                                    ),
-                                  )),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
                 ],
               ),
             ),

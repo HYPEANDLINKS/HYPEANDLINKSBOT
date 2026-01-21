@@ -107,6 +107,9 @@ class TelegramWebApp {
         print('Telegram WebApp expand() called');
       }
 
+      // Set header color to black to hide it (matches background)
+      setHeaderColor('#000000');
+
       // Enable closing confirmation if needed
       final enableClosingConfirmation = app['enableClosingConfirmation'];
       if (enableClosingConfirmation is js.JsFunction) {

@@ -10,6 +10,7 @@ import '../app/theme/app_theme.dart';
 import '../widgets/global/global_logo_bar.dart';
 import '../widgets/common/diagonal_line_painter.dart';
 import '../telegram_safe_area.dart';
+import '../telegram_webapp.dart';
 
 class SwapPage extends StatefulWidget {
   const SwapPage({super.key});
@@ -39,7 +40,9 @@ class _SwapPageState extends State<SwapPage> with TickerProviderStateMixin {
   }
   
   void _handleBackButton() {
-    Navigator.of(context).pop();
+    if (mounted && Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    }
   }
   
   StreamSubscription<tma.BackButton>? _backButtonSubscription;
@@ -1005,21 +1008,40 @@ class _SwapPageState extends State<SwapPage> with TickerProviderStateMixin {
         final webApp = tma.WebApp();
         final eventHandler = webApp.eventHandler;
         
+        // IMPORTANT: Register listener BEFORE showing the button
         // Listen to backButtonClicked event
         _backButtonSubscription = eventHandler.backButtonClicked.listen((backButton) {
+          print('[SwapPage] Back button clicked!');
           _handleBackButton();
         });
         
-        // Show the back button
-        Future.delayed(const Duration(milliseconds: 200), () {
+        print('[SwapPage] Back button listener registered');
+        
+        // Also set up fallback using direct TelegramWebApp API
+        try {
+          final telegramWebApp = TelegramWebApp();
+          telegramWebApp.onBackButtonClick(() {
+            print('[SwapPage] Back button clicked (fallback)!');
+            _handleBackButton();
+          });
+          print('[SwapPage] Fallback back button listener registered');
+        } catch (e) {
+          print('[SwapPage] Error setting up fallback back button: $e');
+        }
+        
+        // Show the back button after a short delay to ensure listener is ready
+        Future.delayed(const Duration(milliseconds: 100), () {
           try {
-            webApp.backButton.show();
+            if (mounted) {
+              webApp.backButton.show();
+              print('[SwapPage] Back button shown');
+            }
           } catch (e) {
-            // Ignore errors
+            print('[SwapPage] Error showing back button: $e');
           }
         });
       } catch (e) {
-        // Ignore errors
+        print('[SwapPage] Error setting up back button: $e');
       }
     });
   }
