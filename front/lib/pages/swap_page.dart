@@ -2256,7 +2256,7 @@ class _SwapPageState extends State<SwapPage> with TickerProviderStateMixin {
                                 crossAxisAlignment: CrossAxisAlignment.center,
                                 children: [
                                   const Text(
-                                    'Max.',
+                                    'max.',
                                     style: TextStyle(
                                       fontFamily: 'Aeroport',
                                       fontSize: 15,

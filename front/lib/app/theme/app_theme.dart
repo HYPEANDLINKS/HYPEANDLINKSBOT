@@ -277,25 +277,25 @@ class AppTheme {
       isLightTheme ? lightBaseColors : darkBaseColors;
 
   static Color get backgroundColor =>
-      isLightTheme ? Colors.white : Colors.black;
+      isLightTheme ? const Color(0xFFFAFAFA) : const Color(0xFF111111);
 
-  static Color get textColor => isLightTheme ? Colors.black : Colors.white;
+  static Color get textColor => isLightTheme ? const Color(0xFF111111) : const Color(0xFFFAFAFA);
 
-  static Color get chartLineColor => isLightTheme ? Colors.black : Colors.white;
+  static Color get chartLineColor => isLightTheme ? const Color(0xFF111111) : const Color(0xFFFAFAFA);
 
-  static Color get dotFillColor => isLightTheme ? Colors.white : Colors.black;
+  static Color get dotFillColor => isLightTheme ? const Color(0xFFFAFAFA) : const Color(0xFF111111);
 
-  static Color get dotStrokeColor => isLightTheme ? Colors.black : Colors.white;
+  static Color get dotStrokeColor => isLightTheme ? const Color(0xFF111111) : const Color(0xFFFAFAFA);
 
   static Color get buttonBackgroundColor =>
-      isLightTheme ? Colors.black : Colors.white;
+      isLightTheme ? const Color(0xFF111111) : const Color(0xFFFAFAFA);
 
   static Color get buttonTextColor =>
-      isLightTheme ? Colors.white : Colors.black;
+      isLightTheme ? const Color(0xFFFAFAFA) : const Color(0xFF111111);
 
   static Color get radialGradientColor =>
-      isLightTheme ? const Color(0xFFFFFFFF) : const Color(0xFF06050A);
+      isLightTheme ? const Color(0xFFFAFAFA) : const Color(0xFF06050A);
 
-  static Color get overlayColor => isLightTheme ? Colors.white : Colors.black;
+  static Color get overlayColor => isLightTheme ? const Color(0xFFFAFAFA) : const Color(0xFF111111);
 }
 
