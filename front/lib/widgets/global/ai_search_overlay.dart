@@ -38,35 +38,25 @@ class _AiSearchOverlayState extends State<AiSearchOverlay> {
     // Listen to focus changes to update state and setup/teardown back button
     GlobalBottomBar.focusNotifier.addListener(_onFocusChanged);
     
-    // Cache heights immediately in post-frame callback to ensure they're set before first build
-    // This prevents recalculation when MediaQuery changes (keyboard opens)
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        _cacheHeightsFromContext();
-      }
-    });
-  }
-  
-  void _cacheHeightsFromContext() {
-    // Cache heights only once to prevent recalculation when MediaQuery changes
-    if (_cachedLogoBarHeight == null) {
-      _cachedLogoBarHeight = GlobalLogoBar.shouldShowLogo()
-          ? GlobalLogoBar.getLogoBlockHeight()
-          : 0.0;
-    }
-    // Note: We can't cache bottomBarHeight here without context, so it will be cached on first build
+    // Cache logo height immediately (synchronously) to prevent recalculation
+    // This is critical on mobile where viewport changes can trigger rebuilds
+    // before post-frame callbacks execute
+    _cachedLogoBarHeight = GlobalLogoBar.shouldShowLogo()
+        ? GlobalLogoBar.getLogoBlockHeight()
+        : 0.0;
   }
   
   void _cacheHeights(BuildContext context) {
-    // Cache heights only once to prevent recalculation when MediaQuery changes
+    // Cache heights only once to prevent recalculation when MediaQuery/safe area changes
+    // Logo height is already cached in initState, but ensure it's set
     if (_cachedLogoBarHeight == null) {
       _cachedLogoBarHeight = GlobalLogoBar.shouldShowLogo()
           ? GlobalLogoBar.getLogoBlockHeight()
           : 0.0;
     }
+    // Cache bottom bar height on first build
+    // This should be stable regardless of keyboard state (only reads padding.bottom)
     if (_cachedBottomBarHeight == null) {
-      // Cache bottom bar height - this should be stable regardless of keyboard state
-      // getBottomBarHeight only reads padding.bottom, not viewInsets.bottom
       _cachedBottomBarHeight = GlobalBottomBar.getBottomBarHeight(context);
     }
   }
