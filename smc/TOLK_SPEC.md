@@ -201,14 +201,15 @@ get fun getLockedForUser(userAddress: address): uint64 {
 
 ```tolk
 struct TreasuryJettonWalletStorage {
-    balance: coins
-    owner: address                    // Treasury contract address (fixed at deploy)
+    balance: coins                   // amount of jettons held (TEP-74 balance)
+    owner: address                   // Treasury contract address (fixed at deploy)
     minter: address                  // Dollar minter address (fixed at deploy)
     jettonWalletCode: cell           // for standard interface
     isLockedByTreasury: bool = true  // state: when true, standard TEP-74 Transfer rejected; only TransferToUser from owner allowed
 }
 ```
 
+- **Amount**: `balance: coins` — current amount of jettons held by this wallet (increases on InternalTransfer, decreases on TransferToUser / Transfer).
 - **Fixed at deploy**: `owner`, `minter` (never changed). Treasury wallet address is fixed in the **jetton contract** and in the **Treasury** contract.
 - **State**: `isLockedByTreasury`. When **true**: incoming TEP-74 **Transfer** → throw; only **TransferToUser** from `owner` (treasury) is allowed. When **false**: normal TEP-74 **Transfer** allowed (optional; treasury can set to false to “unlock” the wallet).
 

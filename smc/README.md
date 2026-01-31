@@ -57,7 +57,7 @@ So:
 - **Summary of components**
   - **Treasury contract** — Holds TON (liquidity); ledger `lockedForUser: map<address, uint64>`; receives liquidity, requests mints, receives “credited” from treasury wallet, requests “transfer to user” from treasury wallet.
   - **Jetton contract (dollar minter)** — **Fixed in storage**: `owner`, `treasuryWalletAddress`. Mints only to that treasury jetton wallet (payload = user to credit). Only owner (e.g. treasury) can request mint.
-  - **Treasury jetton wallet** — **Fixed in storage**: `owner` (treasury), `minter`. **State**: `isLockedByTreasury: bool` — when true, standard Transfer is rejected; only treasury can order “transfer to user”. On InternalTransfer: notify treasury with (user, amount). On “transfer to user” from treasury: perform TEP-74 transfer to that user. (Treasury wallet address is fixed in the **jetton contract** and in the **Treasury** contract.)
+  - **Treasury jetton wallet** — **Amount**: `balance` (coins) — jettons held. **Fixed in storage**: `owner` (treasury), `minter`. **State**: `isLockedByTreasury: bool` — when true, standard Transfer is rejected; only treasury can order “transfer to user”. On InternalTransfer: notify treasury with (user, amount). On “transfer to user” from treasury: perform TEP-74 transfer to that user. (Treasury wallet address is fixed in the **jetton contract** and in the **Treasury** contract.)
 
 All of this is specified in Tolk-friendly form in **[TOLK_SPEC.md](./TOLK_SPEC.md)** (storage structs, message opcodes, entrypoints, flows).
 
@@ -105,7 +105,7 @@ All of this is specified in Tolk-friendly form in **[TOLK_SPEC.md](./TOLK_SPEC.m
 |----------|------|
 | **Treasury** | Holds TON (liquidity); ledger `lockedForUser[address]`; receives liquidity; requests mint for user; receives “credited” from treasury wallet; requests “transfer to user” from treasury wallet. |
 | **Jetton contract (Dollar Minter)** | **Fixed in storage**: `owner`, `treasuryWalletAddress`. TEP-74 minter. Mints only to that treasury jetton wallet (payload = user to credit). Only owner can request mint. |
-| **Treasury Jetton Wallet** | **Fixed in storage**: `owner`, `minter`. **State**: `isLockedByTreasury` — when true, standard Transfer rejected; only treasury can order transfer to user. On InternalTransfer: notify treasury with (user, amount). On order from treasury: transfer jettons to user. |
+| **Treasury Jetton Wallet** | **Amount**: `balance` (coins). **Fixed in storage**: `owner`, `minter`. **State**: `isLockedByTreasury` — when true, standard Transfer rejected; only treasury can order transfer to user. On InternalTransfer: notify treasury with (user, amount). On order from treasury: transfer jettons to user. |
 
 Full Tolk-level specs (storage, messages, entrypoints) are in **[TOLK_SPEC.md](./TOLK_SPEC.md)**.
 

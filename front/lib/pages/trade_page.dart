@@ -7,6 +7,55 @@ import '../widgets/global/global_logo_bar.dart';
 import '../telegram_safe_area.dart';
 import '../telegram_webapp.dart';
 
+class _TradeColumn extends StatelessWidget {
+  const _TradeColumn({
+    required this.imagePath,
+    required this.title,
+    required this.subtitle,
+  });
+
+  final String imagePath;
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SizedBox(
+          width: double.infinity,
+          child: AspectRatio(
+            aspectRatio: 1,
+            child: SvgPicture.asset(
+              imagePath,
+              fit: BoxFit.contain,
+            ),
+          ),
+        ),
+        const SizedBox(height: 15),
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 15,
+            color: AppTheme.textColor,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(height: 5),
+        Text(
+          subtitle,
+          style: const TextStyle(
+            fontSize: 15,
+            color: Color(0xFF818181),
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class TradePage extends StatefulWidget {
   const TradePage({super.key});
 
@@ -122,14 +171,31 @@ class _TradePageState extends State<TradePage> {
                   left: 15,
                   right: 15,
                 ),
-                child: Center(
-                  child: SvgPicture.asset(
-                    AppTheme.isLightTheme
-                        ? 'assets/images/404_light.svg'
-                        : 'assets/images/404_dark.svg',
-                    width: 32,
-                    height: 32,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // First block: 2 columns with pictures, titles, subtitles
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: _TradeColumn(
+                            imagePath: 'assets/sample/pixakats.svg',
+                            title: 'Pixakats',
+                            subtitle: 'Trade Pixakats',
+                          ),
+                        ),
+                        const SizedBox(width: 15),
+                        Expanded(
+                          child: _TradeColumn(
+                            imagePath: 'assets/sample/Haramarta.svg',
+                            title: 'Haramarta',
+                            subtitle: 'Trade Haramarta',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
             ),
