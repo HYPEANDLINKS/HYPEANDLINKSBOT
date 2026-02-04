@@ -6,6 +6,7 @@ import os, json
 app = FastAPI()
 
 STORE_PATH = os.getenv("RAG_STORE_PATH", "rag_store.json")
+PROJECTS_STORE_PATH = os.getenv("PROJECTS_STORE_PATH", "projects_store.json")
 
 def load_store() -> List[Dict[str, Any]]:
     if not os.path.exists(STORE_PATH):
@@ -19,6 +20,18 @@ def save_store(docs: List[Dict[str, Any]]) -> None:
     with open(STORE_PATH, "w", encoding="utf-8") as f:
         f.write(json.dumps(docs, ensure_ascii=False, indent=2))
 
+def load_projects() -> List[Dict[str, Any]]:
+    if not os.path.exists(PROJECTS_STORE_PATH):
+        return []
+    try:
+        return json.loads(open(PROJECTS_STORE_PATH, "r", encoding="utf-8").read())
+    except:
+        return []
+
+def save_projects(projects: List[Dict[str, Any]]) -> None:
+    with open(PROJECTS_STORE_PATH, "w", encoding="utf-8") as f:
+        f.write(json.dumps(projects, ensure_ascii=False, indent=2))
+
 class IngestDoc(BaseModel):
     text: str
     source: Optional[str] = None
@@ -30,9 +43,30 @@ class QueryRequest(BaseModel):
     query: str
     top_k: int = 5
 
+class Project(BaseModel):
+    id: str
+    name: str
+    slug: str
+    description: Optional[str] = None
+    tags: List[str] = []
+    official_links: Dict[str, str] = {}
+    sources: List[Dict[str, str]] = []
+    updated_at: Optional[str] = None
+
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+@app.get("/projects")
+async def list_projects():
+    return load_projects()
+
+@app.get("/projects/{project_id}")
+async def get_project(project_id: str):
+    for p in load_projects():
+        if p["id"] == project_id:
+            return p
+    return {"error": "not found"}
 
 @app.post("/ingest")
 async def ingest(req: IngestRequest):
@@ -68,3 +102,15 @@ async def query(req: QueryRequest):
         sources.append(item.get("source", "unknown"))
 
     return {"context": context, "sources": sources}
+
+@app.post("/ingest/projects")
+async def ingest_projects(projects: List[Project]):
+    store = load_projects()
+    by_id = {p["id"]: p for p in store}
+
+    for p in projects:
+        by_id[p.id] = p.dict()
+
+    merged = list(by_id.values())
+    save_projects(merged)
+    return {"ingested": len(projects), "total": len(merged)}
