@@ -105,6 +105,45 @@ async def query(req: QueryRequest):
         context.append(snippet)
         sources.append(item.get("source", "unknown"))
 
+    # If no doc hits, try lightweight project matching
+    if len(top) == 0 and q_words:
+        projects = load_projects()
+        proj_scored = []
+        for p in projects:
+            name = str(p.get("name", ""))
+            desc = str(p.get("description", ""))
+            tags = p.get("tags", [])
+            tag_text = " ".join([str(t) for t in tags]) if isinstance(tags, list) else ""
+            haystack = f"{name} {desc} {tag_text}".lower()
+            overlap = sum(1 for w in q_words if w in haystack)
+            if overlap > 0:
+                proj_scored.append((overlap, p))
+
+        proj_scored.sort(key=lambda x: x[0], reverse=True)
+        top_projects = [x[1] for x in proj_scored[: req.top_k]]
+
+        for p in top_projects:
+            name = p.get("name", "Unknown project")
+            desc = p.get("description") or ""
+            tags = p.get("tags") or []
+            tag_text = ", ".join([str(t) for t in tags]) if isinstance(tags, list) else ""
+            snippet_parts = [str(name)]
+            if desc:
+                snippet_parts.append(f"- {desc}")
+            if tag_text:
+                snippet_parts.append(f"(tags: {tag_text})")
+            context.append(" ".join(snippet_parts)[:800])
+
+            source_name = "allowlist"
+            proj_sources = p.get("sources")
+            if isinstance(proj_sources, list) and proj_sources:
+                source_name = proj_sources[0].get("source_name", source_name)
+            sources.append({
+                "source_name": source_name,
+                "project_id": p.get("id"),
+                "official_links": p.get("official_links", {}),
+            })
+
     return {"context": context, "sources": sources}
 
 @app.post("/ingest/projects")
