@@ -49,3 +49,7 @@ curl -X POST http://localhost:8001/query \
   -H "Content-Type: application/json" \
   -d "{\"query\":\"ton\", \"top_k\": 3}"
 ```
+
+```bash
+curl -s -X POST $RAG_URL/ingest/source/allowlist
+```

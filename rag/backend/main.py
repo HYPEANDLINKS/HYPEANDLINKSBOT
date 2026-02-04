@@ -1,9 +1,13 @@
 from fastapi import FastAPI
+from pathlib import Path
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 import os, json
 
 app = FastAPI()
+
+BASE_DIR = Path(__file__).resolve().parent
+ALLOWLIST_PATH = BASE_DIR.parent / "data" / "projects_allowlist.json"
 
 STORE_PATH = os.getenv("RAG_STORE_PATH", "rag_store.json")
 PROJECTS_STORE_PATH = os.getenv("PROJECTS_STORE_PATH", "projects_store.json")
@@ -114,3 +118,41 @@ async def ingest_projects(projects: List[Project]):
     merged = list(by_id.values())
     save_projects(merged)
     return {"ingested": len(projects), "total": len(merged)}
+
+@app.post("/ingest/source/allowlist")
+async def ingest_allowlist():
+    try:
+        if not ALLOWLIST_PATH.exists():
+            return {
+                "error": "allowlist file not found",
+                "path": str(ALLOWLIST_PATH)
+            }
+
+        raw = json.loads(ALLOWLIST_PATH.read_text(encoding="utf-8"))
+
+        if not isinstance(raw, list):
+            return {"error": "allowlist must be a list"}
+
+        projects = [Project(**p) for p in raw]
+
+        store = load_projects()
+        by_id = {p["id"]: p for p in store}
+
+        for p in projects:
+            by_id[p.id] = p.dict()
+
+        merged = list(by_id.values())
+        save_projects(merged)
+
+        return {
+            "source": "allowlist",
+            "ingested": len(projects),
+            "total": len(merged)
+        }
+
+    except Exception as e:
+        # critical: NEVER crash
+        return {
+            "error": "failed to ingest allowlist",
+            "detail": str(e)
+        }
