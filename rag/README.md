@@ -1,13 +1,24 @@
 # RAG Service (Skeleton)
 
 Run locally:
+```bash
 pip install -r requirements.txt
 uvicorn backend.main:app --reload --port 8001
+```
+
+**Used by:** The **AI backend** (`ai/backend/main.py`) calls this service when its `RAG_URL` env var is set. The Telegram bot does not call RAG directly. See **[RAG_BOT_AI_INTEGRATION.md](../RAG_BOT_AI_INTEGRATION.md)** for env vars and wiring.
+
+**Deploy to Railway:** Push the repo, deploy the `rag` root directory. The public link is **given by Railway** (Settings → Networking → Generate Domain). Do **not** set that link in this code. Copy that URL and set it as **`RAG_URL`** in the **AI** service’s environment (Railway Variables or .env).
 
 Endpoints:
 GET /health
+GET /projects
+GET /projects/{project_id}
+GET /tokens/{symbol}
 POST /ingest
 POST /query
+POST /ingest/projects
+POST /ingest/source/allowlist
 
 ## Project Knowledge (V1)
 

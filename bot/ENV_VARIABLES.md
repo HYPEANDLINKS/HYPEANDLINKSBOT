@@ -64,6 +64,10 @@
    railway variables set APP_URL=your_app_url
    ```
 
+## Connecting Bot + AI + RAG
+
+The bot talks only to the **AI backend**. The AI backend can use a **RAG service** when its `RAG_URL` env var is set (the bot does not need a RAG URL). For full setup and env vars for RAG, AI, and bot together, see **[RAG_BOT_AI_INTEGRATION.md](../RAG_BOT_AI_INTEGRATION.md)** in the repo root.
+
 ## Notes
 - Never commit `.env` files to version control
 - Railway environment variables take precedence over `.env` file
