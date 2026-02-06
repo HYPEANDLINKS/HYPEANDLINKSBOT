@@ -53,7 +53,7 @@ class _MyAppState extends State<MyApp> {
       valueListenable: AppTheme.colorSchemeNotifier,
       builder: (context, colorScheme, child) {
         return MaterialApp(
-          title: "Hype N' Links",
+          title: "Hyperlinks.Space App",
           navigatorKey: MyApp.navigatorKey,
           navigatorObservers: [MyApp.routeObserver],
           builder: (context, child) {
