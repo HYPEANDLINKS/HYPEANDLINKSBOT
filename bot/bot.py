@@ -1,6 +1,7 @@
 import os
 import asyncio
 import json
+import re
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, CallbackQueryHandler, filters
@@ -76,6 +77,49 @@ def build_regen_system_prompt(lang: str) -> str:
         "Name, Symbol, Type; Total supply (tokens), Holders, Last activity; Sources (optional). "
         "Preserve numeric values exactly."
     )
+
+
+def build_default_system_prompt(lang: str) -> str:
+    language_line = "Respond only in Russian." if lang == "ru" else "Respond only in English."
+    return f"{BASE_SYSTEM_PROMPT} {language_line}"
+
+
+def detect_language_from_text(text: str, default: str = "en") -> str:
+    if not text:
+        return default
+    cyrillic_count = sum(1 for ch in text if "\u0400" <= ch <= "\u04FF")
+    latin_count = sum(1 for ch in text if ("a" <= ch.lower() <= "z"))
+    if cyrillic_count > latin_count and cyrillic_count > 0:
+        return "ru"
+    if latin_count > 0:
+        return "en"
+    return default
+
+
+def is_ticker_like_message(text: str) -> bool:
+    value = (text or "").strip()
+    if not value:
+        return False
+    lowered = value.lower()
+    if "ticker" in lowered:
+        return True
+    if value.startswith("$") and len(value) <= 15:
+        return True
+    compact = re.sub(r"\s+", " ", value)
+    if re.fullmatch(r"[A-Za-z0-9]{2,10}", compact):
+        return True
+    if re.fullmatch(r"(price|chart|info)\s+[A-Za-z0-9]{2,10}", lowered):
+        return True
+    return False
+
+
+def get_last_user_message_from_history(history: list) -> str | None:
+    for item in reversed(history):
+        if item.get("role") == "user":
+            content = (item.get("content") or "").strip()
+            if content:
+                return content
+    return None
 
 
 def format_token_facts_block(text: str) -> str | None:
@@ -396,17 +440,19 @@ async def stream_ai_response(messages: list, bot, chat_id: int, message_id: int,
     last_sent_text = ""  # Track last sent text to avoid "message not modified" errors
     current_message_id = message_id
 
-    async def edit_or_fallback_send(text: str):
+    async def edit_or_fallback_send(text: str, with_keyboard: bool = False):
         nonlocal current_message_id, last_sent_text
         if not text or text == last_sent_text:
             return
         try:
-            await bot.edit_message_text(
-                chat_id=chat_id,
-                message_id=current_message_id,
-                text=text,
-                reply_markup=build_language_keyboard(current_message_id)
-            )
+            kwargs = {
+                "chat_id": chat_id,
+                "message_id": current_message_id,
+                "text": text
+            }
+            if with_keyboard:
+                kwargs["reply_markup"] = build_language_keyboard(current_message_id)
+            await bot.edit_message_text(**kwargs)
             last_sent_text = text
             return
         except TelegramError as e:
@@ -414,16 +460,17 @@ async def stream_ai_response(messages: list, bot, chat_id: int, message_id: int,
                 return
             print(f"Warning: Could not edit message {current_message_id}: {e}. Falling back to send_message.")
         try:
-            sent = await bot.send_message(
-                chat_id=chat_id,
-                text=text
-            )
+            send_kwargs = {"chat_id": chat_id, "text": text}
+            if with_keyboard:
+                send_kwargs["reply_markup"] = build_language_keyboard(0)
+            sent = await bot.send_message(**send_kwargs)
             current_message_id = sent.message_id
-            await bot.edit_message_reply_markup(
-                chat_id=chat_id,
-                message_id=current_message_id,
-                reply_markup=build_language_keyboard(current_message_id)
-            )
+            if with_keyboard:
+                await bot.edit_message_reply_markup(
+                    chat_id=chat_id,
+                    message_id=current_message_id,
+                    reply_markup=build_language_keyboard(current_message_id)
+                )
             last_sent_text = text
         except TelegramError as e:
             print(f"Warning: Could not send fallback message: {e}")
@@ -447,7 +494,7 @@ async def stream_ai_response(messages: list, bot, chat_id: int, message_id: int,
                             data = json.loads(line)
                             if "error" in data:
                                 error_text = f"Error: {data['error']}"
-                                await edit_or_fallback_send(error_text)
+                                await edit_or_fallback_send(error_text, with_keyboard=True)
                                 return
                             
                             # Parse streaming response: token field contains partial content
@@ -468,7 +515,7 @@ async def stream_ai_response(messages: list, bot, chat_id: int, message_id: int,
                                 
                                 display_text = response_text + signature
                                 if display_text and display_text != last_sent_text:
-                                    await edit_or_fallback_send(display_text)
+                                    await edit_or_fallback_send(display_text, with_keyboard=False)
                                     last_edit_time = current_time
                             
                             if data.get("done", False):
@@ -487,7 +534,7 @@ async def stream_ai_response(messages: list, bot, chat_id: int, message_id: int,
                 
                 final_text = response_text + signature
                 
-                await edit_or_fallback_send(final_text)
+                await edit_or_fallback_send(final_text, with_keyboard=True)
                 
                 # Save assistant response to conversation history (without signature for context)
                 if accumulated_text:
@@ -495,16 +542,16 @@ async def stream_ai_response(messages: list, bot, chat_id: int, message_id: int,
                 
                 if not final_text:
                     no_response_text = "Sorry, I didn't receive a response."
-                    await edit_or_fallback_send(no_response_text)
+                    await edit_or_fallback_send(no_response_text, with_keyboard=True)
     except httpx.TimeoutException:
         error_text = "Sorry, the AI took too long to respond. Please try again."
-        await edit_or_fallback_send(error_text)
+        await edit_or_fallback_send(error_text, with_keyboard=True)
     except httpx.RequestError as e:
         error_text = f"Sorry, I couldn't connect to the AI service. Error: {str(e)}"
-        await edit_or_fallback_send(error_text)
+        await edit_or_fallback_send(error_text, with_keyboard=True)
     except Exception as e:
         error_text = f"Sorry, an error occurred: {str(e)}"
-        await edit_or_fallback_send(error_text)
+        await edit_or_fallback_send(error_text, with_keyboard=True)
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -522,15 +569,17 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     
     # Retrieve conversation history (before saving current message)
     history = await get_conversation_history(telegram_id, limit=5)
+    last_user_message = get_last_user_message_from_history(history)
+
+    message_lang = detect_language_from_text(message_text)
+    if is_ticker_like_message(message_text) and last_user_message:
+        message_lang = detect_language_from_text(last_user_message, default=message_lang)
     
     # Build messages array according to Ollama API spec
-    # Start with system message if no history exists
-    messages = []
-    if not history:
-        messages.append({
-            "role": "system",
-            "content": BASE_SYSTEM_PROMPT
-        })
+    messages = [{
+        "role": "system",
+        "content": build_default_system_prompt(message_lang)
+    }]
     
     # Add conversation history
     messages.extend(history)
@@ -543,12 +592,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     asyncio.create_task(save_message(telegram_id, "user", message_text))
     
     # Send initial "thinking" message
-    sent_message = await update.message.reply_text("Thinking...")
-    await context.bot.edit_message_reply_markup(
-        chat_id=sent_message.chat_id,
-        message_id=sent_message.message_id,
-        reply_markup=build_language_keyboard(sent_message.message_id)
-    )
+    sent_message = await update.message.reply_text(THINKING_TEXT.get(message_lang, THINKING_TEXT["en"]))
     _message_prompt_map[(sent_message.chat_id, sent_message.message_id)] = message_text
     
     # Stream AI response and edit the message as chunks arrive
