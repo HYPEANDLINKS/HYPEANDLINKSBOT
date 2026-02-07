@@ -8,9 +8,6 @@ import '../../telegram_webapp.dart';
 class GlobalLogoBar extends StatefulWidget {
   const GlobalLogoBar({super.key});
 
-  /// Single source for the app logo. Update assets/images/loga.svg to change the logo app-wide.
-  static const String logoAsset = 'assets/images/loga.svg';
-
   @override
   State<GlobalLogoBar> createState() => _GlobalLogoBarState();
 
@@ -216,55 +213,90 @@ class _GlobalLogoBarState extends State<GlobalLogoBar> with SingleTickerProvider
     // }
   }
 
-  /// Single place that builds the visible logo bar (used for both browser and TMA fullscreen).
-  static Widget _buildLogoBar() {
-    final logoBlockHeight = GlobalLogoBar.getLogoBlockHeight();
-    return Material(
-      color: Colors.transparent,
-      child: Container(
-        width: double.infinity,
-        height: logoBlockHeight,
-        padding: EdgeInsets.only(
-            top: GlobalLogoBar._getLogoTopPadding(),
-            bottom: 10,
-            left: 15,
-            right: 15),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 600),
-            child: SizedBox(
-              width: 32,
-              height: 32,
-              child: SvgPicture.asset(
-                GlobalLogoBar.logoAsset,
-                width: 32,
-                height: 32,
-                key: const ValueKey('global_logo'),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<String?>(
       valueListenable: AppTheme.colorSchemeNotifier,
       builder: (context, colorScheme, _) {
+        // Check if we're in browser or TMA
         final telegramWebApp = TelegramWebApp();
         final isInBrowser = !telegramWebApp.isActuallyInTelegram;
-
+        
+        // In browser mode, always show logo without animation
         if (isInBrowser) {
-          return _buildLogoBar();
+          final logoBlockHeight = GlobalLogoBar.getLogoBlockHeight();
+          // Don't use SafeArea - it reads MediaQuery and causes rebuilds
+          // Safe area calculations are handled via TelegramSafeAreaService in _getLogoTopPadding()
+          return Material(
+            color: Colors.transparent,
+            child: Container(
+              width: double.infinity,
+              height: logoBlockHeight,
+              padding: EdgeInsets.only(
+                  top: GlobalLogoBar._getLogoTopPadding(),
+                  bottom: 10,
+                  left: 15,
+                  right: 15),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 600),
+                  child: SizedBox(
+                    width: 32,
+                    height: 32,
+                    child: SvgPicture.asset(
+                      'assets/images/loga.svg',
+                      width: 32,
+                      height: 32,
+                      key: const ValueKey('global_logo'),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
         }
-
+        
+        // In TMA mode, check isFullscreen and show/hide logo directly without animation
+        // Use ValueListenableBuilder to react to fullscreen changes
         return ValueListenableBuilder<bool>(
           valueListenable: GlobalLogoBar.fullscreenNotifier,
           builder: (context, shouldShowLogo, _) {
-            if (!shouldShowLogo) return const SizedBox.shrink();
-            return _buildLogoBar();
+            // Hide logo if not fullscreen
+            if (!shouldShowLogo) {
+              return const SizedBox.shrink();
+            }
+            
+            // Show logo directly in TMA fullscreen mode
+            final logoBlockHeight = GlobalLogoBar.getLogoBlockHeight();
+            // Don't use SafeArea - it reads MediaQuery and causes rebuilds
+            // Safe area calculations are handled via TelegramSafeAreaService in _getLogoTopPadding()
+            return Material(
+              color: Colors.transparent,
+              child: Container(
+                width: double.infinity,
+                height: logoBlockHeight,
+                padding: EdgeInsets.only(
+                    top: GlobalLogoBar._getLogoTopPadding(),
+                    bottom: 10,
+                    left: 15,
+                    right: 15),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 600),
+                    child: SizedBox(
+                      width: 32,
+                      height: 32,
+                      child: SvgPicture.asset(
+                        'assets/images/loga.svg',
+                        width: 32,
+                        height: 32,
+                        key: const ValueKey('global_logo'),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
           },
         );
       },
