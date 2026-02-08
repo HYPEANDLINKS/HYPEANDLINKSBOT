@@ -18,6 +18,7 @@ _db_pool = None
 _message_prompt_map = {}
 _stream_cancel_events: dict[tuple[int, int], threading.Event] = {}
 _active_bot_msg_by_chat: dict[int, int] = {}
+_active_stream_tasks: dict[tuple[int, int], asyncio.Task] = {}
 
 BASE_SYSTEM_PROMPT = (
     "You are a helpful assistant. Pay attention to the conversation history and respond "
@@ -51,10 +52,19 @@ def build_language_keyboard(message_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(keyboard)
 
 
-def cancel_stream(chat_id: int, message_id: int) -> None:
-    event = _stream_cancel_events.get((chat_id, message_id))
+async def cancel_stream(chat_id: int, message_id: int) -> None:
+    """Cancel active stream and wait for cleanup to complete."""
+    key = (chat_id, message_id)
+    event = _stream_cancel_events.get(key)
     if event:
         event.set()
+    task = _active_stream_tasks.pop(key, None)
+    if task and not task.done():
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
 
 
 def _safe_int_like(value):
@@ -452,6 +462,9 @@ async def stream_ai_response(messages: list, bot, chat_id: int, message_id: int,
     tracked_keys = {key}
     cancel_event = threading.Event()
     _stream_cancel_events[key] = cancel_event
+    current_task = asyncio.current_task()
+    if current_task:
+        _active_stream_tasks[key] = current_task
 
     async def edit_or_fallback_send(text: str):
         nonlocal current_message_id, last_sent_text, tracked_keys
@@ -483,6 +496,8 @@ async def stream_ai_response(messages: list, bot, chat_id: int, message_id: int,
             current_message_id = sent.message_id
             tracked_keys.add((chat_id, current_message_id))
             _stream_cancel_events[(chat_id, current_message_id)] = cancel_event
+            if current_task:
+                _active_stream_tasks[(chat_id, current_message_id)] = current_task
             _active_bot_msg_by_chat[chat_id] = current_message_id
             await bot.edit_message_reply_markup(
                 chat_id=chat_id,
@@ -573,14 +588,19 @@ async def stream_ai_response(messages: list, bot, chat_id: int, message_id: int,
     except httpx.RequestError as e:
         error_text = f"Sorry, I couldn't connect to the AI service. Error: {str(e)}"
         await edit_or_fallback_send(error_text)
+    except asyncio.CancelledError:
+        print(f"Stream cancelled for message {message_id}")
+        raise
     except Exception as e:
         error_text = f"Sorry, an error occurred: {str(e)}"
         await edit_or_fallback_send(error_text)
     finally:
-        for key in list(tracked_keys):
-            if _stream_cancel_events.get(key) is cancel_event:
-                _stream_cancel_events.pop(key, None)
-            if _active_bot_msg_by_chat.get(chat_id) == key[1]:
+        for tracked_key in list(tracked_keys):
+            if _stream_cancel_events.get(tracked_key) is cancel_event:
+                _stream_cancel_events.pop(tracked_key, None)
+            if current_task and _active_stream_tasks.get(tracked_key) is current_task:
+                _active_stream_tasks.pop(tracked_key, None)
+            if _active_bot_msg_by_chat.get(chat_id) == tracked_key[1]:
                 _active_bot_msg_by_chat.pop(chat_id, None)
 
 
@@ -599,7 +619,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     chat_id = update.effective_chat.id
     prev_msg_id = _active_bot_msg_by_chat.get(chat_id)
     if prev_msg_id:
-        cancel_stream(chat_id, prev_msg_id)
+        await cancel_stream(chat_id, prev_msg_id)
     
     # Retrieve conversation history (before saving current message)
     history = await get_conversation_history(telegram_id, limit=5)
@@ -631,14 +651,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     _message_prompt_map[(sent_message.chat_id, sent_message.message_id)] = message_text
     _active_bot_msg_by_chat[sent_message.chat_id] = sent_message.message_id
     
-    # Stream AI response and edit the message as chunks arrive
-    await stream_ai_response(
+    # Run stream generation in background so callback updates can be processed mid-stream.
+    stream_task = asyncio.create_task(stream_ai_response(
         messages,
         context.bot,
         sent_message.chat_id,
         sent_message.message_id,
         telegram_id
-    )
+    ))
+    _active_stream_tasks[(sent_message.chat_id, sent_message.message_id)] = stream_task
 
 
 async def handle_language_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -669,7 +690,7 @@ async def handle_language_callback(update: Update, context: ContextTypes.DEFAULT
 
     telegram_id = update.effective_user.id
     chat_id = query.message.chat_id
-    cancel_stream(chat_id, target_message_id)
+    await cancel_stream(chat_id, target_message_id)
 
     thinking_text = THINKING_TEXT.get(lang, THINKING_TEXT["en"])
     active_message_id = target_message_id
@@ -729,13 +750,14 @@ async def handle_language_callback(update: Update, context: ContextTypes.DEFAULT
     _message_prompt_map[(chat_id, active_message_id)] = source_text
     _active_bot_msg_by_chat[chat_id] = active_message_id
 
-    await stream_ai_response(
+    stream_task = asyncio.create_task(stream_ai_response(
         messages,
         context.bot,
         chat_id,
         active_message_id,
         telegram_id
-    )
+    ))
+    _active_stream_tasks[(chat_id, active_message_id)] = stream_task
 
 
 async def post_init(app):
