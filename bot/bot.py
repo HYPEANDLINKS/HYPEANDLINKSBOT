@@ -15,6 +15,7 @@ load_dotenv()
 # Database connection pool
 _db_pool = None
 _message_prompt_map = {}
+_stream_cancel_events = {}
 
 BASE_SYSTEM_PROMPT = (
     "You are a helpful assistant. Pay attention to the conversation history and respond "
@@ -46,6 +47,12 @@ def build_language_keyboard(message_id: int) -> InlineKeyboardMarkup:
         InlineKeyboardButton("RU", callback_data=f"lang:ru:{message_id}")
     ]]
     return InlineKeyboardMarkup(keyboard)
+
+
+def cancel_stream(chat_id: int, message_id: int) -> None:
+    event = _stream_cancel_events.get((chat_id, message_id))
+    if event:
+        event.set()
 
 
 def _safe_int_like(value):
@@ -439,10 +446,15 @@ async def stream_ai_response(messages: list, bot, chat_id: int, message_id: int,
     edit_interval = 1.0  # Edit message every 1 second to avoid rate limits
     last_sent_text = ""  # Track last sent text to avoid "message not modified" errors
     current_message_id = message_id
+    tracked_keys = {(chat_id, message_id)}
+    cancel_event = asyncio.Event()
+    _stream_cancel_events[(chat_id, message_id)] = cancel_event
 
     async def edit_or_fallback_send(text: str):
-        nonlocal current_message_id, last_sent_text
+        nonlocal current_message_id, last_sent_text, tracked_keys
         if not text or text == last_sent_text:
+            return
+        if cancel_event.is_set():
             return
         try:
             kwargs = {
@@ -466,6 +478,8 @@ async def stream_ai_response(messages: list, bot, chat_id: int, message_id: int,
             }
             sent = await bot.send_message(**send_kwargs)
             current_message_id = sent.message_id
+            tracked_keys.add((chat_id, current_message_id))
+            _stream_cancel_events[(chat_id, current_message_id)] = cancel_event
             await bot.edit_message_reply_markup(
                 chat_id=chat_id,
                 message_id=current_message_id,
@@ -489,6 +503,8 @@ async def stream_ai_response(messages: list, bot, chat_id: int, message_id: int,
                 response.raise_for_status()
                 
                 async for line in response.aiter_lines():
+                    if cancel_event.is_set():
+                        return
                     if line:
                         try:
                             data = json.loads(line)
@@ -506,6 +522,8 @@ async def stream_ai_response(messages: list, bot, chat_id: int, message_id: int,
                             # Edit message periodically to avoid rate limits (with signature)
                             current_time = asyncio.get_event_loop().time()
                             if current_time - last_edit_time >= edit_interval:
+                                if cancel_event.is_set():
+                                    return
                                 signature = "\n\n***\n\nSincerely yours, @HyperlinksSpaceBot"
                                 max_response_length = 4096 - len(signature)
                                 if len(accumulated_text) > max_response_length:
@@ -533,6 +551,8 @@ async def stream_ai_response(messages: list, bot, chat_id: int, message_id: int,
                     response_text = accumulated_text
                 
                 final_text = response_text + signature
+                if cancel_event.is_set():
+                    return
                 
                 await edit_or_fallback_send(final_text)
                 
@@ -552,6 +572,10 @@ async def stream_ai_response(messages: list, bot, chat_id: int, message_id: int,
     except Exception as e:
         error_text = f"Sorry, an error occurred: {str(e)}"
         await edit_or_fallback_send(error_text)
+    finally:
+        for key in list(tracked_keys):
+            if _stream_cancel_events.get(key) is cancel_event:
+                del _stream_cancel_events[key]
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -634,6 +658,7 @@ async def handle_language_callback(update: Update, context: ContextTypes.DEFAULT
 
     telegram_id = update.effective_user.id
     chat_id = query.message.chat_id
+    cancel_stream(chat_id, target_message_id)
 
     thinking_text = THINKING_TEXT.get(lang, THINKING_TEXT["en"])
     active_message_id = target_message_id
