@@ -26,8 +26,8 @@ app.add_middleware(
 
 # Ollama API URL - defaults to localhost, can be overridden with env var
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
-# Using llama3.2:3b as default - multilingual model optimized for 8GB RAM
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2:3b")
+# Speed/quality balanced default for multilingual responses on constrained CPU.
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:7b-instruct")
 RAG_URL = os.getenv("RAG_URL")
 
 # API Key for authentication - must be set in environment variables
@@ -144,9 +144,9 @@ async def chat(request: ChatRequest, api_key: str = Depends(verify_api_key)):
                     if ticker_mode and ticker_symbol:
                         try:
                             request_url = f"{RAG_URL}/tokens/{ticker_symbol}"
-                            start = time.monotonic()
+                            start = time.perf_counter()
                             r = await client.get(request_url, timeout=3.0)
-                            elapsed_ms = int((time.monotonic() - start) * 1000)
+                            elapsed_ms = int((time.perf_counter() - start) * 1000)
                             status_code = r.status_code
                             response_text = r.text[:200]
                             rag_url_s = sanitize_url(RAG_URL)
@@ -190,15 +190,19 @@ async def chat(request: ChatRequest, api_key: str = Depends(verify_api_key)):
                                         "description": description,
                                         "sources": sources,
                                     }
+                                    print(f"[timing] rag_ticker_lookup_ms={elapsed_ms} symbol={ticker_symbol} status={status_code}")
                         except Exception as e:
                             print(f"[ticker] exception symbol={ticker_symbol} rag_url={sanitize_url(RAG_URL)} error={type(e).__name__}:{e}")
                             ticker_error_response = "provider_unavailable"
                     else:
+                        rag_start = time.perf_counter()
                         r = await client.post(f"{RAG_URL}/query", json={"query": user_last, "top_k": 5})
                         if r.status_code == 200:
                             data = r.json()
                             rag_context = data.get("context", [])
                             rag_sources = data.get("sources", [])
+                        rag_elapsed_ms = int((time.perf_counter() - rag_start) * 1000)
+                        print(f"[timing] rag_query_ms={rag_elapsed_ms} status={r.status_code}")
         except:
             pass
     
@@ -261,8 +265,11 @@ async def chat(request: ChatRequest, api_key: str = Depends(verify_api_key)):
     else:
         # Default options for backward compatibility with existing clients
         ollama_request["options"] = {
-            "num_predict": 1000,
-            "temperature": 0.7,
+            "num_ctx": 2048,
+            "num_predict": 256,
+            "temperature": 0.3,
+            "top_p": 0.9,
+            "repeat_penalty": 1.1,
             "num_thread": 2,
         }
     if request.think is not None:
@@ -276,6 +283,8 @@ async def chat(request: ChatRequest, api_key: str = Depends(verify_api_key)):
     
     async def generate_response():
         try:
+            inference_start = time.perf_counter()
+            first_token_logged = False
             # Call Ollama /api/chat endpoint with messages array (according to API spec)
             async with httpx.AsyncClient(timeout=60.0) as client:
                 async with client.stream(
@@ -283,6 +292,8 @@ async def chat(request: ChatRequest, api_key: str = Depends(verify_api_key)):
                     f"{OLLAMA_URL}/api/chat",
                     json=ollama_request
                 ) as response:
+                    stream_open_ms = int((time.perf_counter() - inference_start) * 1000)
+                    print(f"[timing] ollama_stream_open_ms={stream_open_ms} model={model}")
                     if response.status_code != 200:
                         error_detail = "Unknown error"
                         try:
@@ -306,12 +317,18 @@ async def chat(request: ChatRequest, api_key: str = Depends(verify_api_key)):
                                 if "message" in data and isinstance(data["message"], dict):
                                     content = data["message"].get("content", "")
                                     if content:
+                                        if not first_token_logged:
+                                            ttft_ms = int((time.perf_counter() - inference_start) * 1000)
+                                            print(f"[timing] ollama_first_token_ms={ttft_ms} model={model}")
+                                            first_token_logged = True
                                         full_response += content
                                         # Send each content chunk as it arrives
                                         yield json.dumps({"token": content, "done": data.get("done", False)}) + "\n"
                                 
                                 # Check if stream is done
                                 if data.get("done", False):
+                                    total_ms = int((time.perf_counter() - inference_start) * 1000)
+                                    print(f"[timing] ollama_total_ms={total_ms} model={model}")
                                     # Send final complete response
                                     yield json.dumps({"response": full_response, "done": True}) + "\n"
                                     break
