@@ -104,6 +104,14 @@ def build_regen_system_prompt(lang: str) -> str:
         if lang == "ru"
         else "Respond only in English. Write naturally in English prose."
     )
+    return (
+        f"{BASE_SYSTEM_PROMPT} {language_instruction} "
+        "Output plain text only. "
+        "Do not output JSON, code blocks, CSV, or key value lists. "
+        "If token facts are provided, explain them in complete sentences. "
+        "Mention name and symbol, total supply in tokens, holders, and last activity. "
+        "Be concise and informative."
+    )
 
 
 RAW_DUMP_PATTERNS = [
@@ -598,7 +606,22 @@ async def stream_ai_response(messages: list, bot, chat_id: int, message_id: int,
                 }
             ) as response:
                 log_timing("HTTP stream opened", stream_start)
-                response.raise_for_status()
+                try:
+                    response.raise_for_status()
+                except httpx.HTTPStatusError as e:
+                    status_code = e.response.status_code if e.response is not None else "unknown"
+                    response_text = ""
+                    if e.response is not None:
+                        try:
+                            response_text = (await e.response.aread()).decode("utf-8", errors="replace")
+                        except Exception:
+                            try:
+                                response_text = e.response.text
+                            except Exception:
+                                response_text = ""
+                    print(f"[AI_BACKEND_ERROR] status={status_code} body={response_text[:2000]}")
+                    await edit_or_fallback_send(f"AI backend error (status {status_code}). Please try again.")
+                    return
                 
                 async for line in response.aiter_lines():
                     if cancel_event.is_set():
@@ -738,8 +761,19 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     # Save user message to database (async, non-blocking)
     asyncio.create_task(save_message(telegram_id, "user", message_text))
     
-    # Send initial "thinking" message
-    sent_message = await update.message.reply_text(THINKING_TEXT.get(message_lang, THINKING_TEXT["en"]))
+    # Send initial thinking message with immediate keyboard, then bind callback_data to the real message_id.
+    sent_message = await update.message.reply_text(
+        THINKING_TEXT.get(message_lang, THINKING_TEXT["en"]),
+        reply_markup=build_language_keyboard(0),
+    )
+    try:
+        await context.bot.edit_message_reply_markup(
+            chat_id=sent_message.chat_id,
+            message_id=sent_message.message_id,
+            reply_markup=build_language_keyboard(sent_message.message_id),
+        )
+    except TelegramError as e:
+        print(f"Warning: Could not update thinking keyboard binding: {e}")
     timing_checkpoint = log_timing("Message received -> Thinking sent", timing_start)
     _message_prompt_map[(sent_message.chat_id, sent_message.message_id)] = message_text
     _active_bot_msg_by_chat[sent_message.chat_id] = sent_message.message_id
