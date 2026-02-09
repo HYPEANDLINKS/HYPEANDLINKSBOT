@@ -99,24 +99,24 @@ def sanitize_fact_value(value):
 
 
 def build_regen_system_prompt(lang: str) -> str:
-    language_instruction = (
-        "Respond only in Russian. Write naturally in Russian prose."
-        if lang == "ru"
-        else "Respond only in English. Write naturally in English prose."
-    )
-    domain_instruction = (
-        "Do not translate or change domain names or website names (for example, swap.coffee). Keep them exactly as-is. "
-        if lang == "ru"
-        else ""
-    )
+    if lang == "ru":
+        return (
+            f"{BASE_SYSTEM_PROMPT}\n"
+            "ВАЖНО: отвечай строго на русском языке.\n"
+            "Английские слова запрещены, КРОМЕ тикеров, доменов и названий (MCOM, swap.coffee).\n"
+            "Не выводи JSON, код, таблицы, списки полей или строки с ';'.\n"
+            "Если даны факты о токене — перескажи их ПРОЗОЙ (1–4 предложения).\n"
+            "НЕ ПРИДУМЫВАЙ: блокчейн, даты, листинги, продажи токена, команду, цели проекта.\n"
+            "Если чего-то нет в фактах — скажи, что данных нет.\n"
+        )
     return (
-        f"{BASE_SYSTEM_PROMPT} {language_instruction} "
-        f"{domain_instruction}"
-        "Output plain text only. "
-        "Do not output JSON, code blocks, CSV, or key value lists. "
-        "If token facts are provided, explain them in complete sentences. "
-        "Mention name and symbol, total supply in tokens, holders, and last activity. "
-        "Be concise and informative."
+        f"{BASE_SYSTEM_PROMPT}\n"
+        "IMPORTANT: respond strictly in English.\n"
+        "No Russian.\n"
+        "No JSON, no raw data dumps.\n"
+        "Use provided facts to write 1-4 natural sentences.\n"
+        "Do not invent blockchain, dates, listings, token sales, team, or roadmap.\n"
+        "If missing, say data is not available.\n"
     )
 
 
@@ -142,6 +142,8 @@ def normalize_ru_terms(text: str) -> str:
         " tokens ": " токенов ",
         " holder ": " владелец ",
         " token ": " токен ",
+        " decentralized ": " децентрализованный ",
+        " community ": " сообщество ",
     }
     normalized = f" {text} "
     for src, dst in replacements.items():
@@ -204,8 +206,22 @@ async def rewrite_as_prose(text: str, lang: str) -> str | None:
 
 
 def build_default_system_prompt(lang: str) -> str:
-    language_line = "Respond only in Russian." if lang == "ru" else "Respond only in English."
-    return f"{BASE_SYSTEM_PROMPT} {language_line}"
+    if lang == "ru":
+        return (
+            f"{BASE_SYSTEM_PROMPT}\n"
+            "ВАЖНО: отвечай строго на русском языке.\n"
+            "Английские слова запрещены, КРОМЕ тикеров, доменов и названий (например MCOM, swap.coffee).\n"
+            "Если не уверен — скажи, что данных недостаточно.\n"
+            "Не придумывай факты.\n"
+            "Отвечай в 1-4 предложениях.\n"
+        )
+    return (
+        f"{BASE_SYSTEM_PROMPT}\n"
+        "IMPORTANT: respond strictly in English.\n"
+        "Do not use Russian.\n"
+        "If unsure, say you don't have enough data. Do not invent facts.\n"
+        "Answer in 1-4 sentences.\n"
+    )
 
 
 def detect_language_from_text(text: str, default: str = "en") -> str:

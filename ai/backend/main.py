@@ -214,13 +214,26 @@ async def chat(request: ChatRequest, api_key: str = Depends(verify_api_key)):
             if ticker_error_response == "not_found":
                 return stream_text_response(f"I don't have verified data for ${ticker_symbol} yet.")
             return stream_text_response("Token provider unavailable, try again.")
+        reference_facts = (
+            "[REFERENCE FACTS - DO NOT COPY VERBATIM]\n"
+            f"Name: {token_facts.get('name') or 'unknown'}\n"
+            f"Symbol: {token_facts.get('symbol') or ticker_symbol}\n"
+            f"Total supply: {token_facts.get('total_supply') or token_facts.get('supply') or 'unknown'}\n"
+            f"Holders: {token_facts.get('holders') or token_facts.get('holder_count') or 'unknown'}\n"
+            f"Last activity: {token_facts.get('last_activity') or token_facts.get('updated_at') or 'unknown'}\n"
+            f"Sources: {token_facts.get('sources')}\n"
+            "[/REFERENCE FACTS]"
+        )
         ticker_prompt = (
             "You are a token information assistant.\n"
-            "Use the provided token facts to summarize what the token is.\n"
-            "Then provide a short speculative narrative guess based only on the token's name and ticker.\n"
-            "Clearly label the narrative as speculative and potentially incorrect.\n"
+            "Use ONLY the reference facts below.\n"
+            "Explain the token briefly in 1-4 natural sentences.\n"
+            "Do not output raw lists, JSON, or field dumps.\n"
+            "Do not invent blockchain, dates, listings, token sales, team, or roadmap.\n"
+            "If a fact is missing, say it is not available.\n"
             "Do not provide investment advice or price predictions.\n\n"
-            f"VERIFIED_TOKEN_FACTS:\n{json.dumps(token_facts, ensure_ascii=False)}"
+            f"{reference_facts}\n\n"
+            "User task: Explain this token briefly."
         )
         messages_dict.append({"role": "system", "content": ticker_prompt})
     if rag_context:
