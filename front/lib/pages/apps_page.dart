@@ -3,11 +3,11 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'dart:async';
 import 'package:flutter_telegram_miniapp/flutter_telegram_miniapp.dart' as tma;
 import '../widgets/global/global_logo_bar.dart';
-import '../widgets/global/global_bottom_bar.dart';
 import '../widgets/common/edge_swipe_back.dart';
 import '../telegram_safe_area.dart';
 import '../app/theme/app_theme.dart';
 import '../telegram_webapp.dart';
+import '../utils/app_haptic.dart';
 
 class AppsPage extends StatefulWidget {
   const AppsPage({super.key});
@@ -21,6 +21,7 @@ class _AppsPageState extends State<AppsPage> {
   final ScrollController _scrollController = ScrollController();
 
   void _handleBackButton() {
+    AppHaptic.heavy();
     if (mounted && Navigator.of(context).canPop()) {
       Navigator.of(context).pop();
     }

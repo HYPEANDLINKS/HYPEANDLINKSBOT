@@ -7,6 +7,7 @@ import '../widgets/global/global_logo_bar.dart';
 import '../widgets/common/edge_swipe_back.dart';
 import '../telegram_safe_area.dart';
 import '../telegram_webapp.dart';
+import '../utils/app_haptic.dart';
 
 class _TradeFeedItem extends StatelessWidget {
   const _TradeFeedItem({required this.item});
@@ -209,6 +210,7 @@ class _TradePageState extends State<TradePage> {
       ];
 
   void _handleBackButton() {
+    AppHaptic.heavy();
     if (mounted && Navigator.of(context).canPop()) {
       Navigator.of(context).pop();
     }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../app/theme/app_theme.dart';
+import '../../utils/app_haptic.dart';
 // TODO: AI functionality will be rebuilt from scratch
 // import '../../pages/new_page.dart';
 // import '../../analytics.dart';
@@ -73,6 +74,7 @@ class _GlobalBottomBarState extends State<GlobalBottomBar> {
         _isFocused = newFocusState;
       });
       GlobalBottomBar._focusNotifier.value = newFocusState;
+      if (newFocusState) AppHaptic.heavy();
     });
 
     // Listen to global unfocus requests
@@ -253,6 +255,7 @@ class _GlobalBottomBarState extends State<GlobalBottomBar> {
                   const SizedBox(width: 5),
                   GestureDetector(
                     onTap: () {
+                      AppHaptic.heavy();
                       _navigateToNewPage();
                     },
                     child: SvgPicture.asset(

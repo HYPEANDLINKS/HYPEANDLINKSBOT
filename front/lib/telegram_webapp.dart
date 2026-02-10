@@ -229,6 +229,19 @@ class TelegramWebApp {
     }
   }
 
+  /// Trigger haptic impact (only in TMA). Style: 'light', 'medium', 'heavy', 'rigid', 'soft'.
+  void impactOccurred(String style) {
+    if (!isActuallyInTelegram) return;
+    try {
+      final app = webApp;
+      if (app == null) return;
+      final haptic = app['HapticFeedback'];
+      if (haptic is! js.JsObject) return;
+      final fn = haptic['impactOccurred'];
+      if (fn is js.JsFunction) fn.apply([style]);
+    } catch (_) {}
+  }
+
   /// Get the color scheme (light or dark)
   String? get colorScheme {
     try {

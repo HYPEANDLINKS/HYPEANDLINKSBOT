@@ -7,6 +7,7 @@ import '../widgets/common/edge_swipe_back.dart';
 import '../telegram_safe_area.dart';
 import '../app/theme/app_theme.dart';
 import '../telegram_webapp.dart';
+import '../utils/app_haptic.dart';
 import '../widgets/global/global_bottom_bar.dart';
 import '../utils/keyboard_height_service.dart';
 
@@ -28,6 +29,7 @@ class _SendPageState extends State<SendPage> {
 
 
   void _handleBackButton() {
+    AppHaptic.heavy();
     if (mounted && Navigator.of(context).canPop()) {
       Navigator.of(context).pop();
     }

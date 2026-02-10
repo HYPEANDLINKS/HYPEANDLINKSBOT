@@ -3,6 +3,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../app/theme/app_theme.dart';
 import '../widgets/global/global_logo_bar.dart';
 import '../telegram_safe_area.dart';
+import '../utils/app_haptic.dart';
 import 'swap_page.dart';
 import 'trade_page.dart';
 import 'wallets_page.dart';
@@ -278,6 +279,7 @@ class _MainPageState extends State<MainPage> {
                                 ),
                               ),
                               GestureDetector(
+                                behavior: HitTestBehavior.opaque,
                                 onTap: () {
                                   Navigator.push(
                                     context,
@@ -289,6 +291,7 @@ class _MainPageState extends State<MainPage> {
                                       reverseTransitionDuration: Duration.zero,
                                     ),
                                   );
+                                  AppHaptic.heavy();
                                 },
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
@@ -357,8 +360,8 @@ class _MainPageState extends State<MainPage> {
                               ),
                               Expanded(
                                 child: GestureDetector(
+                                  behavior: HitTestBehavior.opaque,
                                   onTap: () {
-                                    // Navigate to SwapPage
                                     Navigator.push(
                                       context,
                                       PageRouteBuilder(
@@ -370,6 +373,7 @@ class _MainPageState extends State<MainPage> {
                                             Duration.zero,
                                       ),
                                     );
+                                    AppHaptic.heavy();
                                   },
                                   child: Column(
                                     mainAxisSize: MainAxisSize.min,
@@ -410,6 +414,7 @@ class _MainPageState extends State<MainPage> {
                               ),
                               Expanded(
                                 child: GestureDetector(
+                                  behavior: HitTestBehavior.opaque,
                                   onTap: () {
                                     Navigator.push(
                                       context,
@@ -422,6 +427,7 @@ class _MainPageState extends State<MainPage> {
                                             Duration.zero,
                                       ),
                                     );
+                                    AppHaptic.heavy();
                                   },
                                   child: Column(
                                     mainAxisSize: MainAxisSize.min,
@@ -461,6 +467,7 @@ class _MainPageState extends State<MainPage> {
                               ),
                               Expanded(
                                 child: GestureDetector(
+                                  behavior: HitTestBehavior.opaque,
                                   onTap: () {
                                     Navigator.push(
                                       context,
@@ -473,6 +480,7 @@ class _MainPageState extends State<MainPage> {
                                             Duration.zero,
                                       ),
                                     );
+                                    AppHaptic.heavy();
                                   },
                                   child: Column(
                                     mainAxisSize: MainAxisSize.min,
@@ -513,6 +521,7 @@ class _MainPageState extends State<MainPage> {
                               ),
                               Expanded(
                                 child: GestureDetector(
+                                  behavior: HitTestBehavior.opaque,
                                   onTap: () {
                                     Navigator.push(
                                       context,
@@ -525,6 +534,7 @@ class _MainPageState extends State<MainPage> {
                                             Duration.zero,
                                       ),
                                     );
+                                    AppHaptic.heavy();
                                   },
                                   child: Column(
                                     mainAxisSize: MainAxisSize.min,
@@ -570,10 +580,12 @@ class _MainPageState extends State<MainPage> {
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               GestureDetector(
+                                behavior: HitTestBehavior.opaque,
                                 onTap: () {
                                   setState(() {
                                     _selectedTab = 'Feed';
                                   });
+                                  AppHaptic.heavy();
                                 },
                                 child: Text(
                                   'Feed',
@@ -589,10 +601,12 @@ class _MainPageState extends State<MainPage> {
                               ),
                               const SizedBox(width: 15),
                               GestureDetector(
+                                behavior: HitTestBehavior.opaque,
                                 onTap: () {
                                   setState(() {
                                     _selectedTab = 'Chat';
                                   });
+                                  AppHaptic.heavy();
                                 },
                                 child: Text(
                                   'Chat',
@@ -608,10 +622,12 @@ class _MainPageState extends State<MainPage> {
                               ),
                               const SizedBox(width: 15),
                               GestureDetector(
+                                behavior: HitTestBehavior.opaque,
                                 onTap: () {
                                   setState(() {
                                     _selectedTab = 'Tasks';
                                   });
+                                  AppHaptic.heavy();
                                 },
                                 child: Text(
                                   'Tasks',
@@ -627,10 +643,12 @@ class _MainPageState extends State<MainPage> {
                               ),
                               const SizedBox(width: 15),
                               GestureDetector(
+                                behavior: HitTestBehavior.opaque,
                                 onTap: () {
                                   setState(() {
                                     _selectedTab = 'Items';
                                   });
+                                  AppHaptic.heavy();
                                 },
                                 child: Text(
                                   'Items',
@@ -646,10 +664,12 @@ class _MainPageState extends State<MainPage> {
                               ),
                               const SizedBox(width: 15),
                               GestureDetector(
+                                behavior: HitTestBehavior.opaque,
                                 onTap: () {
                                   setState(() {
                                     _selectedTab = 'Coins';
                                   });
+                                  AppHaptic.heavy();
                                 },
                                 child: Text(
                                   'Coins',

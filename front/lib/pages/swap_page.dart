@@ -12,6 +12,7 @@ import '../widgets/common/edge_swipe_back.dart';
 import '../widgets/common/diagonal_line_painter.dart';
 import '../telegram_safe_area.dart';
 import '../telegram_webapp.dart';
+import '../utils/app_haptic.dart';
 
 class SwapPage extends StatefulWidget {
   const SwapPage({super.key});
@@ -41,6 +42,7 @@ class _SwapPageState extends State<SwapPage> {
   }
   
   void _handleBackButton() {
+    AppHaptic.heavy();
     if (mounted && Navigator.of(context).canPop()) {
       Navigator.of(context).pop();
     }
@@ -233,6 +235,7 @@ class _SwapPageState extends State<SwapPage> {
     final isSelected = _selectedResolution == _resolutionMap[key];
     return GestureDetector(
       onTap: () {
+        AppHaptic.heavy();
         setState(() {
           _selectedResolution = _resolutionMap[key]!;
         });

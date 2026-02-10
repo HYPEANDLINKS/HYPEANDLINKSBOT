@@ -7,6 +7,7 @@ import '../widgets/common/edge_swipe_back.dart';
 import '../telegram_safe_area.dart';
 import '../app/theme/app_theme.dart';
 import '../telegram_webapp.dart';
+import '../utils/app_haptic.dart';
 
 class WalletsPage extends StatefulWidget {
   const WalletsPage({super.key});
@@ -17,6 +18,7 @@ class WalletsPage extends StatefulWidget {
 
 class _WalletsPageState extends State<WalletsPage> {
   void _handleBackButton() {
+    AppHaptic.heavy();
     if (mounted && Navigator.of(context).canPop()) {
       Navigator.of(context).pop();
     }

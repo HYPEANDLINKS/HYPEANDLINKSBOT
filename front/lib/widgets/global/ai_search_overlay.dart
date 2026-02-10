@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../app/theme/app_theme.dart';
 import '../../utils/keyboard_height_service.dart';
 import '../../utils/telegram_back_button.dart';
+import '../../utils/app_haptic.dart';
 import '../../telegram_webapp.dart';
 import '../../widgets/global/global_bottom_bar.dart';
 import '../common/edge_swipe_back.dart';
@@ -114,6 +115,7 @@ class _AiSearchOverlayState extends State<AiSearchOverlay> {
   }
 
   void _onOptionTap(String option) {
+    AppHaptic.heavy();
     // Set the option text to the input field
     GlobalBottomBar.setInputText(option);
     // Keep focus so user can edit if needed
@@ -121,6 +123,7 @@ class _AiSearchOverlayState extends State<AiSearchOverlay> {
   }
 
   void _onOverlayTap() {
+    AppHaptic.heavy();
     // Close overlay when tapping outside options
     GlobalBottomBar.unfocusInput();
   }
