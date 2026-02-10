@@ -22,7 +22,7 @@ cp assets/favicon.ico web/favicon.ico
 
 # Build Flutter web app
 echo "Building Flutter web app..."
-flutter build web --release --base-href "//"
+flutter build web --release --base-href "//" --no-wasm-dry-run
 
 # Check if build was successful
 if [ ! -d "build/web" ]; then

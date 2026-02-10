@@ -36,6 +36,36 @@ class _MainPageState extends State<MainPage> {
 
   String _selectedTab = 'Feed'; // Default selected tab
 
+  static const List<String> _tabOrder = ['Feed', 'Chat', 'Tasks', 'Items', 'Coins'];
+
+  /// Min horizontal velocity (px/s) to treat as a tab swipe (same feel as edge-swipe-back).
+  static const double _swipeVelocityThreshold = 200.0;
+
+  void _onHorizontalDragEnd(DragEndDetails details) {
+    final v = details.primaryVelocity ?? 0.0;
+    if (v > _swipeVelocityThreshold) {
+      _selectTabToLeft(); // swipe right -> previous tab
+    } else if (v < -_swipeVelocityThreshold) {
+      _selectTabToRight(); // swipe left -> next tab
+    }
+  }
+
+  void _selectTabToRight() {
+    final i = _tabOrder.indexOf(_selectedTab);
+    if (i >= 0 && i < _tabOrder.length - 1) {
+      setState(() => _selectedTab = _tabOrder[i + 1]);
+      AppHaptic.heavy();
+    }
+  }
+
+  void _selectTabToLeft() {
+    final i = _tabOrder.indexOf(_selectedTab);
+    if (i > 0) {
+      setState(() => _selectedTab = _tabOrder[i - 1]);
+      AppHaptic.heavy();
+    }
+  }
+
   // Mock coin data
   final List<Map<String, dynamic>> _coins = [
     {
@@ -175,12 +205,19 @@ class _MainPageState extends State<MainPage> {
                   alignment: Alignment.topCenter,
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 570),
-                    child: SingleChildScrollView(
-                      controller: _mainScrollController,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        mainAxisAlignment: MainAxisAlignment.start,
-                        children: [
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        Positioned.fill(
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.translucent,
+                            onHorizontalDragEnd: _onHorizontalDragEnd,
+                            child: SingleChildScrollView(
+                              controller: _mainScrollController,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                mainAxisAlignment: MainAxisAlignment.start,
+                                children: [
                           // Hash row with icons - content part
                           Padding(
                             padding: const EdgeInsets.only(bottom: 15),
@@ -580,15 +617,15 @@ class _MainPageState extends State<MainPage> {
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               GestureDetector(
-                                behavior: HitTestBehavior.opaque,
-                                onTap: () {
-                                  setState(() {
-                                    _selectedTab = 'Feed';
-                                  });
-                                  AppHaptic.heavy();
-                                },
-                                child: Text(
-                                  'Feed',
+                                  behavior: HitTestBehavior.opaque,
+                                  onTap: () {
+                                    setState(() {
+                                      _selectedTab = 'Feed';
+                                    });
+                                    AppHaptic.heavy();
+                                  },
+                                  child: Text(
+                                    'Feed',
                                   style: TextStyle(
                                     fontFamily: 'Aeroport',
                                     fontSize: 20,
@@ -1213,24 +1250,28 @@ class _MainPageState extends State<MainPage> {
                                             overflow: TextOverflow.ellipsis,
                                           ),
                                           const SizedBox(height: 5),
-                                          // Subtitle
-                                          Flexible(
-                                            child: Text(
-                                              item['subtitle'] as String,
-                                              style: const TextStyle(
-                                                fontFamily: 'Aeroport',
-                                                fontSize: 15,
-                                                fontWeight: FontWeight.w400,
-                                                color: Color(0xFF818181),
-                                                height: 20 / 15,
+                                          // Subtitle (fixed height so layout works in Column with mainAxisSize.min)
+                                          SizedBox(
+                                            height: 20,
+                                            child: Align(
+                                              alignment: Alignment.centerLeft,
+                                              child: Text(
+                                                item['subtitle'] as String,
+                                                style: const TextStyle(
+                                                  fontFamily: 'Aeroport',
+                                                  fontSize: 15,
+                                                  fontWeight: FontWeight.w400,
+                                                  color: Color(0xFF818181),
+                                                  height: 20 / 15,
+                                                ),
+                                                textHeightBehavior:
+                                                    const TextHeightBehavior(
+                                                  applyHeightToFirstAscent: false,
+                                                  applyHeightToLastDescent: false,
+                                                ),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
                                               ),
-                                              textHeightBehavior:
-                                                  const TextHeightBehavior(
-                                                applyHeightToFirstAscent: false,
-                                                applyHeightToLastDescent: false,
-                                              ),
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
                                             ),
                                           ),
                                         ],
@@ -1395,9 +1436,49 @@ class _MainPageState extends State<MainPage> {
                         ],
                       ),
                     ),
+                    ),
                   ),
-                ),
+                  // Left edge: swipe right = previous tab (same as back swipe on inner pages)
+                  Positioned(
+                    left: 0,
+                    top: 0,
+                    bottom: 0,
+                    width: 24,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.translucent,
+                      onHorizontalDragEnd: (DragEndDetails details) {
+                        final v = details.primaryVelocity ?? 0.0;
+                        if (v > _swipeVelocityThreshold) {
+                          _selectTabToLeft();
+                          AppHaptic.heavy();
+                        }
+                      },
+                      child: const SizedBox.expand(),
+                    ),
+                  ),
+                  // Right edge: swipe left = next tab
+                  Positioned(
+                    right: 0,
+                    top: 0,
+                    bottom: 0,
+                    width: 24,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.translucent,
+                      onHorizontalDragEnd: (DragEndDetails details) {
+                        final v = details.primaryVelocity ?? 0.0;
+                        if (v < -_swipeVelocityThreshold) {
+                          _selectTabToRight();
+                          AppHaptic.heavy();
+                        }
+                      },
+                      child: const SizedBox.expand(),
+                    ),
+                  ),
+                ],
               ),
+              ),
+            ),
+            ),
               // Scroll indicator - always visible, 5px from right edge
               // Height reflects visible area dimension
               Positioned(
