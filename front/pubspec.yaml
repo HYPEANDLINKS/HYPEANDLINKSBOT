@@ -26,6 +26,7 @@ flutter:
   # Assets folder (for images used in Flutter code)
   assets:
     - assets/favicon.ico
+    - assets/HyperlinksSpace.svg
     - assets/images/
     - assets/icons/
     - assets/icons/menu/

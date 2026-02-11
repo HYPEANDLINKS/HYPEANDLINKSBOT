@@ -16,9 +16,17 @@ if ! command -v flutter &> /dev/null; then
     exit 1
 fi
 
-# Copy favicon to web directory (Flutter includes files from web/ in the build)
-echo "Copying favicon to web directory..."
-cp assets/favicon.ico web/favicon.ico
+# Regenerate favicon from current logo SVG before build/deploy
+echo "Generating favicon from assets/HyperlinksSpace.svg..."
+if command -v python3 &> /dev/null; then
+    python3 scripts/svg_to_favicon.py || exit 1
+elif command -v python &> /dev/null; then
+    python scripts/svg_to_favicon.py || exit 1
+else
+    echo "Error: Python is required to generate favicon."
+    echo "Install Python and dependency: pip install Pillow"
+    exit 1
+fi
 
 # Build Flutter web app
 echo "Building Flutter web app..."

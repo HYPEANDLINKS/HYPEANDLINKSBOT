@@ -128,6 +128,7 @@ This project is also configured for easy deployment on Vercel. Here are the depl
 ```bash
 bash deploy.sh
 ```
+This automatically regenerates `assets/favicon.ico` and `web/favicon.ico` from `assets/HyperlinksSpace.svg` before build.
 
 Or if you've made it executable:
 ```bash
@@ -138,6 +139,7 @@ Or if you've made it executable:
 ```cmd
 deploy.bat
 ```
+This also auto-regenerates favicon from `assets/HyperlinksSpace.svg` before build.
 
 **Manual Deploy:**
 
@@ -148,6 +150,7 @@ deploy.bat
 
 2. Build the Flutter web app:
    ```bash
+   python scripts/svg_to_favicon.py
    flutter build web --release
    ```
 
