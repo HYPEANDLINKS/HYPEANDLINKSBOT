@@ -8,8 +8,8 @@ import '../../telegram_webapp.dart';
 class GlobalLogoBar extends StatefulWidget {
   const GlobalLogoBar({super.key});
 
-  /// App logo asset. Update assets/images/logo.svg to change the logo app-wide.
-  static const String logoAsset = 'assets/images/logo.svg';
+  /// App logo asset. Update assets/images/loga.svg to change the logo app-wide.
+  static const String logoAsset = 'assets/images/loga.svg';
 
   @override
   State<GlobalLogoBar> createState() => _GlobalLogoBarState();
