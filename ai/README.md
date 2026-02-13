@@ -2,6 +2,13 @@
 
 Backend chat API used by the Telegram bot.
 
+## Health Endpoint
+
+- `GET /health` performs dependency checks for:
+  - AI -> RAG (`RAG_URL/health`)
+  - AI -> LLM provider (`OLLAMA_URL/api/tags` or OpenAI model check)
+- Returns `200` when healthy, `503` when degraded, with detailed dependency status in JSON.
+
 ## Run Locally
 
 ```bash

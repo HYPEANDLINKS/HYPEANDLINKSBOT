@@ -1,7 +1,7 @@
 from __future__ import annotations
 from fastapi import FastAPI, HTTPException, Header, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any, Union, Literal, Tuple
 import httpx
@@ -35,7 +35,7 @@ OLLAMA_URL = os.getenv("OLLAMA_URL", "http://127.0.0.1:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:1.5b")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-RAG_URL = os.getenv("RAG_URL")
+RAG_URL = os.getenv("RAG_URL", "http://127.0.0.1:8001")
 
 # ============================================================================
 # TICKER DETECTION - PRODUCTION GRADE
@@ -453,6 +453,190 @@ class ChatRequest(BaseModel):
 @app.get("/")
 async def root():
     return {"status": "ok", "message": "AI Chat API is running"}
+
+
+def _normalize_provider() -> str:
+    if LLM_PROVIDER == "openai":
+        return "openai"
+    return "ollama"
+
+
+async def _check_rag_health(timeout_s: float = 2.0) -> Dict[str, Any]:
+    if not RAG_URL:
+        return {
+            "status": "skipped",
+            "configured": False,
+            "reason": "RAG_URL is not set",
+        }
+
+    started = time.perf_counter()
+    try:
+        async with httpx.AsyncClient(timeout=timeout_s) as client:
+            r = await client.get(f"{RAG_URL.rstrip('/')}/health")
+        elapsed_ms = int((time.perf_counter() - started) * 1000)
+        if r.status_code == 200:
+            return {
+                "status": "ok",
+                "configured": True,
+                "url": RAG_URL,
+                "latency_ms": elapsed_ms,
+                "status_code": 200,
+            }
+        return {
+            "status": "error",
+            "configured": True,
+            "url": RAG_URL,
+            "latency_ms": elapsed_ms,
+            "status_code": r.status_code,
+            "error": f"Unexpected status from RAG health endpoint: {r.status_code}",
+        }
+    except Exception as e:
+        elapsed_ms = int((time.perf_counter() - started) * 1000)
+        return {
+            "status": "error",
+            "configured": True,
+            "url": RAG_URL,
+            "latency_ms": elapsed_ms,
+            "error": str(e),
+        }
+
+
+async def _check_llm_health(provider: str, timeout_s: float = 2.0) -> Dict[str, Any]:
+    started = time.perf_counter()
+
+    if provider == "openai":
+        if not OPENAI_API_KEY:
+            return {
+                "status": "error",
+                "provider": "openai",
+                "model": OPENAI_MODEL,
+                "configured": False,
+                "error": "OPENAI_API_KEY is missing",
+            }
+
+        try:
+            async with httpx.AsyncClient(timeout=timeout_s) as client:
+                r = await client.get(
+                    f"https://api.openai.com/v1/models/{OPENAI_MODEL}",
+                    headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
+                )
+            elapsed_ms = int((time.perf_counter() - started) * 1000)
+            if r.status_code == 200:
+                return {
+                    "status": "ok",
+                    "provider": "openai",
+                    "model": OPENAI_MODEL,
+                    "configured": True,
+                    "latency_ms": elapsed_ms,
+                    "status_code": 200,
+                }
+            return {
+                "status": "error",
+                "provider": "openai",
+                "model": OPENAI_MODEL,
+                "configured": True,
+                "latency_ms": elapsed_ms,
+                "status_code": r.status_code,
+                "error": f"OpenAI model check failed: {r.status_code}",
+            }
+        except Exception as e:
+            elapsed_ms = int((time.perf_counter() - started) * 1000)
+            return {
+                "status": "error",
+                "provider": "openai",
+                "model": OPENAI_MODEL,
+                "configured": True,
+                "latency_ms": elapsed_ms,
+                "error": str(e),
+            }
+
+    try:
+        async with httpx.AsyncClient(timeout=timeout_s) as client:
+            r = await client.get(f"{OLLAMA_URL.rstrip('/')}/api/tags")
+        elapsed_ms = int((time.perf_counter() - started) * 1000)
+
+        if r.status_code != 200:
+            return {
+                "status": "error",
+                "provider": "ollama",
+                "model": OLLAMA_MODEL,
+                "configured": True,
+                "url": OLLAMA_URL,
+                "latency_ms": elapsed_ms,
+                "status_code": r.status_code,
+                "error": f"Ollama tags check failed: {r.status_code}",
+            }
+
+        model_present = False
+        try:
+            data = r.json()
+            models = data.get("models", []) if isinstance(data, dict) else []
+            model_present = any(
+                isinstance(m, dict) and m.get("name") == OLLAMA_MODEL
+                for m in models
+            )
+        except Exception:
+            model_present = False
+
+        if model_present:
+            return {
+                "status": "ok",
+                "provider": "ollama",
+                "model": OLLAMA_MODEL,
+                "configured": True,
+                "url": OLLAMA_URL,
+                "latency_ms": elapsed_ms,
+                "status_code": 200,
+                "model_present": True,
+            }
+
+        return {
+            "status": "error",
+            "provider": "ollama",
+            "model": OLLAMA_MODEL,
+            "configured": True,
+            "url": OLLAMA_URL,
+            "latency_ms": elapsed_ms,
+            "status_code": 200,
+            "model_present": False,
+            "error": f"Model '{OLLAMA_MODEL}' is not available in Ollama",
+        }
+    except Exception as e:
+        elapsed_ms = int((time.perf_counter() - started) * 1000)
+        return {
+            "status": "error",
+            "provider": "ollama",
+            "model": OLLAMA_MODEL,
+            "configured": True,
+            "url": OLLAMA_URL,
+            "latency_ms": elapsed_ms,
+            "error": str(e),
+        }
+
+
+@app.get("/health")
+async def health():
+    provider = _normalize_provider()
+    rag_check, llm_check = await asyncio.gather(
+        _check_rag_health(),
+        _check_llm_health(provider),
+    )
+
+    llm_ok = llm_check.get("status") == "ok"
+    rag_ok = rag_check.get("status") in {"ok", "skipped"}
+    overall_ok = llm_ok and rag_ok
+
+    payload = {
+        "status": "ok" if overall_ok else "degraded",
+        "service": "ai-backend",
+        "provider": provider,
+        "dependencies": {
+            "rag": rag_check,
+            "llm": llm_check,
+        },
+    }
+
+    return JSONResponse(content=payload, status_code=200 if overall_ok else 503)
 
 
 @app.post("/api/chat")
