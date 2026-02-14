@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 
 import '../app/theme/app_theme.dart';
 import '../services/ai_chat_service.dart';
 import '../telegram_safe_area.dart';
 import '../utils/app_haptic.dart';
 import '../widgets/common/edge_swipe_back.dart';
+import '../widgets/global/global_bottom_bar.dart';
 import '../widgets/global/global_logo_bar.dart';
 
 class AiConversationEntry {
@@ -118,6 +120,11 @@ class AiPage extends StatefulWidget {
 
 class _AiPageState extends State<AiPage> {
   final ScrollController _scrollController = ScrollController();
+  final Map<int, GlobalKey> _entryKeys = <int, GlobalKey>{};
+  int _pinRetryCount = 0;
+  double _latestEntryHeight = 0.0;
+  // 30px design inset with 1px clip safety to prevent previous-edge bleed.
+  static const double _latestEntryTopInset = 29.0;
 
   double _getAdaptiveBottomPadding() {
     final safeAreaInset = TelegramSafeAreaService().getSafeAreaInset();
@@ -145,7 +152,7 @@ class _AiPageState extends State<AiPage> {
         .addListener(_onEntriesChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        _jumpToBottom();
+        _pinLatestEntryToTop();
       }
     });
   }
@@ -160,21 +167,69 @@ class _AiPageState extends State<AiPage> {
 
   void _onEntriesChanged() {
     if (!mounted) return;
+    final entries = AiConversationController.instance.entriesNotifier.value;
+    for (var i = 0; i < entries.length; i++) {
+      _entryKeys.putIfAbsent(i, GlobalKey.new);
+    }
     setState(() {});
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        _jumpToBottom();
+        _pinLatestEntryToTop();
       }
     });
   }
 
-  void _jumpToBottom() {
+  Future<void> _pinLatestEntryToTop() async {
     if (!_scrollController.hasClients) return;
-    _scrollController.animateTo(
-      0,
-      duration: const Duration(milliseconds: 180),
-      curve: Curves.easeOut,
-    );
+    final entries = AiConversationController.instance.entriesNotifier.value;
+    if (entries.isEmpty) return;
+
+    final latestIndex = entries.length - 1;
+    final latestKey = _entryKeys.putIfAbsent(latestIndex, GlobalKey.new);
+    var latestContext = latestKey.currentContext;
+
+    // If latest item is not built yet, force-build and retry next frame.
+    if (latestContext == null) {
+      _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+      latestContext = latestKey.currentContext;
+      if (latestContext == null && _pinRetryCount < 3) {
+        _pinRetryCount += 1;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            _pinLatestEntryToTop();
+          }
+        });
+        return;
+      }
+    }
+    if (latestContext == null) return;
+    _pinRetryCount = 0;
+
+    final latestRenderObject = latestContext.findRenderObject();
+    if (latestRenderObject is! RenderBox) {
+      return;
+    }
+
+    final latestHeight = latestRenderObject.size.height;
+    if ((latestHeight - _latestEntryHeight).abs() > 0.5 && mounted) {
+      setState(() {
+        _latestEntryHeight = latestHeight;
+      });
+    }
+
+    // Deterministic reveal math: get exact scroll offset for entry top.
+    final viewport = RenderAbstractViewport.of(latestRenderObject);
+    final revealTopOffset = viewport.getOffsetToReveal(latestRenderObject, 0.0).offset;
+    final targetOffset =
+        (revealTopOffset - _latestEntryTopInset).clamp(0.0, _scrollController.position.maxScrollExtent);
+
+    if ((targetOffset - _scrollController.offset).abs() > 0.5) {
+      await _scrollController.animateTo(
+        targetOffset,
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOut,
+      );
+    }
   }
 
   @override
@@ -182,7 +237,6 @@ class _AiPageState extends State<AiPage> {
     final topPadding = GlobalLogoBar.getContentTopPadding();
     final bottomPadding = _getAdaptiveBottomPadding();
     final entries = AiConversationController.instance.entriesNotifier.value;
-    final newestFirst = entries.reversed.toList();
 
     return Scaffold(
       backgroundColor: AppTheme.backgroundColor,
@@ -199,39 +253,54 @@ class _AiPageState extends State<AiPage> {
                 alignment: Alignment.topCenter,
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 600),
-                  child: ListView.separated(
-                    reverse: true,
-                    controller: _scrollController,
-                    padding: const EdgeInsets.fromLTRB(15, 30, 15, 30),
-                    itemCount: newestFirst.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 30),
-                    itemBuilder: (context, index) {
-                      final entry = newestFirst[index];
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            entry.prompt,
-                            style: TextStyle(
-                              fontFamily: 'Aeroport',
-                              fontSize: 30,
-                              height: 1.0,
-                              fontWeight: FontWeight.w400,
-                              color: AppTheme.textColor,
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                          Text(
-                            entry.isLoading ? 'Thinking...' : entry.answer,
-                            style: TextStyle(
-                              fontFamily: 'Aeroport',
-                              fontSize: 15,
-                              height: 2.0,
-                              fontWeight: FontWeight.w500,
-                              color: AppTheme.textColor,
-                            ),
-                          ),
-                        ],
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      return ListView.separated(
+                        controller: _scrollController,
+                        padding: const EdgeInsets.fromLTRB(15, 30, 15, 30),
+                        itemCount: entries.length + 1,
+                        separatorBuilder: (_, __) => const SizedBox(height: 30),
+                        itemBuilder: (context, index) {
+                          if (index == entries.length) {
+                            final bottomBarHeight =
+                                GlobalBottomBar.getBottomBarHeight(context);
+                            final dynamicSpacer = constraints.maxHeight +
+                                bottomBarHeight +
+                                30.0 +
+                                _latestEntryHeight;
+                            return SizedBox(height: dynamicSpacer);
+                          }
+                          final entry = entries[index];
+                          final itemKey =
+                              _entryKeys.putIfAbsent(index, GlobalKey.new);
+                          return Column(
+                            key: itemKey,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                entry.prompt,
+                                style: TextStyle(
+                                  fontFamily: 'Aeroport',
+                                  fontSize: 30,
+                                  height: 1.0,
+                                  fontWeight: FontWeight.w400,
+                                  color: AppTheme.textColor,
+                                ),
+                              ),
+                              const SizedBox(height: 20),
+                              Text(
+                                entry.isLoading ? 'Thinking...' : entry.answer,
+                                style: TextStyle(
+                                  fontFamily: 'Aeroport',
+                                  fontSize: 15,
+                                  height: 2.0,
+                                  fontWeight: FontWeight.w500,
+                                  color: AppTheme.textColor,
+                                ),
+                              ),
+                            ],
+                          );
+                        },
                       );
                     },
                   ),

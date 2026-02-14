@@ -120,10 +120,9 @@ class _AiSearchOverlayState extends State<AiSearchOverlay> {
 
   void _onOptionTap(String option) {
     AppHaptic.heavy();
-    // Set the option text to the input field
+    // Set option and immediately submit without closing focus first.
     GlobalBottomBar.setInputText(option);
-    // Keep focus so user can edit if needed
-    // Don't unfocus here - let user decide when to submit
+    GlobalBottomBar.submitCurrentInput();
   }
 
   void _onOverlayTap() {

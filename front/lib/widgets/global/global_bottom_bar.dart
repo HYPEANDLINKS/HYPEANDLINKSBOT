@@ -36,6 +36,7 @@ class GlobalBottomBar extends StatefulWidget {
 
   // Static reference to the controller (set by the state)
   static TextEditingController? _controllerInstance;
+  static VoidCallback? _submitCurrentInputCallback;
 
   // Static method to set input text (can be called from anywhere)
   static void setInputText(String text) {
@@ -49,6 +50,11 @@ class GlobalBottomBar extends StatefulWidget {
 
   static String getInputText() {
     return _controllerInstance?.text ?? '';
+  }
+
+  // Submit current input text using the same logic as tap/enter.
+  static void submitCurrentInput() {
+    _submitCurrentInputCallback?.call();
   }
 
   /// Bottom bar height (for layout/padding so content is not overlayed).
@@ -69,6 +75,7 @@ class _GlobalBottomBarState extends State<GlobalBottomBar> {
     super.initState();
     // Set the static controller reference
     GlobalBottomBar._controllerInstance = _controller;
+    GlobalBottomBar._submitCurrentInputCallback = _navigateToNewPage;
 
     _focusNode.addListener(() {
       final newFocusState = _focusNode.hasFocus;
@@ -103,6 +110,7 @@ class _GlobalBottomBarState extends State<GlobalBottomBar> {
   void dispose() {
     GlobalBottomBar._focusNotifier.removeListener(_onGlobalFocusChange);
     GlobalBottomBar._controllerInstance = null;
+    GlobalBottomBar._submitCurrentInputCallback = null;
     _controller.dispose();
     _focusNode.dispose();
     super.dispose();
