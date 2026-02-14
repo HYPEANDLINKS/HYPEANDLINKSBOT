@@ -25,6 +25,15 @@ if (-not (Test-Path -LiteralPath $ragDir)) { throw "Missing directory: $ragDir" 
 if (-not (Test-Path -LiteralPath $aiDir)) { throw "Missing directory: $aiDir" }
 if (-not (Test-Path -LiteralPath $botDir)) { throw "Missing directory: $botDir" }
 
+# Ensure only one local bot polling instance is running.
+$existingBotPids = Get-CimInstance Win32_Process -Filter "Name='python.exe'" |
+  Where-Object CommandLine -Match "bot\.py" |
+  Select-Object -ExpandProperty ProcessId -Unique
+foreach ($procId in $existingBotPids) {
+  try { Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue } catch {}
+}
+Start-Sleep -Milliseconds 300
+
 # Start RAG
 Start-Process -FilePath $venvPython `
   -WorkingDirectory $ragDir `

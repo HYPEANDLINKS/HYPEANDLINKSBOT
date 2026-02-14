@@ -27,15 +27,33 @@ function Kill-Port($port) {
   }
 
   $pids = $pids | Sort-Object -Unique
-  foreach ($pid in $pids) {
-    Write-Host "  Killing PID $pid on port $port..."
-    taskkill /PID $pid /F | Out-Null
+  foreach ($procId in $pids) {
+    Write-Host "  Killing PID $procId on port $port..."
+    taskkill /PID $procId /F | Out-Null
+  }
+}
+
+function Kill-BotProcess {
+  Write-Host "Checking bot.py processes..."
+  $botProcs = Get-CimInstance Win32_Process -Filter "Name='python.exe'" |
+    Where-Object CommandLine -Match "bot\.py"
+
+  if (-not $botProcs) {
+    Write-Host "  No bot.py python process found."
+    return
+  }
+
+  $pids = $botProcs | Select-Object -ExpandProperty ProcessId | Sort-Object -Unique
+  foreach ($procId in $pids) {
+    Write-Host "  Killing bot PID $procId..."
+    taskkill /PID $procId /F | Out-Null
   }
 }
 
 # Always stop backend + rag
 Kill-Port 8000
 Kill-Port 8001
+Kill-BotProcess
 
 if ($StopOllama) {
   Kill-Port 11434
