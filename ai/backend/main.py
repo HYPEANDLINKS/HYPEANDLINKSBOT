@@ -328,16 +328,17 @@ def _format_int_with_commas(value: Optional[int]) -> Optional[str]:
 
 
 def _format_compact_number(value: Optional[int]) -> Optional[str]:
-    """Compact formatter like 545.2T for very large values."""
+    """Compact formatter like 545.2Q for very large values."""
     if value is None:
         return None
+    
     scales = [
-        (10**18, "Qi"),
-        (10**15, "Q"),
-        (10**12, "T"),
-        (10**9, "B"),
-        (10**6, "M"),
-        (10**3, "K"),
+        (10**18, "Qi"),  # Quintillion (10^18)
+        (10**15, "Q"),   # Quadrillion (10^15)
+        (10**12, "T"),   # Trillion
+        (10**9, "B"),    # Billion
+        (10**6, "M"),    # Million
+        (10**3, "K"),    # Thousand
     ]
     for threshold, suffix in scales:
         if value >= threshold:
@@ -384,55 +385,75 @@ def _build_ticker_facts_block(ticker_data: Dict[str, Any], ticker_symbol: Option
     token_type = str(ticker_data.get("type") or "token").lower()
     is_jetton = token_type == "jetton"
 
-    # Get raw int values for compact formatting
-    supply_raw = _to_int(ticker_data.get("total_supply"))
-    holders_raw = _to_int(ticker_data.get("holders"))
-    tx_24h_raw = _to_int(ticker_data.get("tx_24h"))
+    # RAW VALUES - exactly as fetched
+    supply_raw = ticker_data.get("total_supply")
+    holders_raw = ticker_data.get("holders")
     
-    # Compact formatting for one-liner
-    supply_compact = _format_compact_number(supply_raw) if supply_raw else "n/a"
-    holders_compact = _format_compact_number(holders_raw) if holders_raw else "n/a"
+    # Format raw integers with commas for readability (but keep them accurate)
+    supply_display = _metric_display(supply_raw) if supply_raw is not None else None
+    holders_display = _metric_display(holders_raw) if holders_raw is not None else None
     
     last_activity_value = _format_activity_date(ticker_data.get("last_activity"))
     source_value = _resolve_token_source(ticker_data)
 
     if user_lang == "ru":
-        # Russian format
         type_text = "джеттон" if is_jetton else "токен"
         
-        # Header with emoji
-        header = f"🪙 Токен {symbol}"
-        
-        # One-line metrics
-        metrics_line = f"{type_text.capitalize()} TON • {supply_compact} выпуск • {holders_compact} держателей"
-        
-        # Last activity
-        activity_line = f"Последняя активность: {last_activity_value if last_activity_value else 'неизвестно'}"
-        
-        # Source footer
-        source_line = f"ℹ️ Данные: {source_value}"
-        
-        lines = [header, "", metrics_line, activity_line]
+        lines = [
+            f"🪙 {name}",
+            "",
+            f"{type_text.capitalize()} в сети TON",
+            f"Выпуск: {supply_display if supply_display else 'неизвестно'}",
+            f"Держатели: {holders_display if holders_display else 'неизвестно'}",
+            f"Последняя активность: {last_activity_value if last_activity_value else 'неизвестно'}",
+            "",
+            f"ℹ️ Источник: {source_value}"
+        ]
         
     else:
-        # English format
         type_text = "jetton" if is_jetton else "token"
         
-        # Header with emoji
-        header = f"🪙 {name} Token"
-        
-        # One-line metrics
-        metrics_line = f"{type_text.capitalize()} on TON • {supply_compact} supply • {holders_compact} holders"
-        
-        # Last activity
-        activity_line = f"Last activity: {last_activity_value if last_activity_value else 'not available'}"
-        
-        # Source footer
-        source_line = f"ℹ️ Data: {source_value}"
-        
-        lines = [header, "", metrics_line, activity_line]
+        lines = [
+            f"🪙 {name}",
+            "",
+            f"{type_text.capitalize()} on TON",
+            f"Supply: {supply_display if supply_display else 'not available'}",
+            f"Holders: {holders_display if holders_display else 'not available'}",
+            f"Last activity: {last_activity_value if last_activity_value else 'not available'}",
+            "",
+            f"ℹ️ Source: {source_value}"
+        ]
     
-    return "\n".join(lines) + f"\n\n{source_line}"
+    return "\n".join(lines)
+
+
+_CJK_RE = re.compile(r"[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF]")
+
+
+def _narrative_fallback(user_lang: str) -> str:
+    return "Недостаточно данных для анализа." if user_lang == "ru" else "Insufficient data for analysis."
+
+
+def _sanitize_ticker_narrative(narrative: str, user_lang: str) -> str:
+    text = (narrative or "").strip()
+    if not text:
+        return _narrative_fallback(user_lang)
+    # Guardrail: block metric restatements and mixed-script garbage.
+    if re.search(r"\d", text) or _CJK_RE.search(text):
+        return _narrative_fallback(user_lang)
+    return text
+
+
+def _build_deterministic_ticker_overview(ticker_data: Dict[str, Any], user_lang: str) -> str:
+    token_type = str(ticker_data.get("type") or "token").lower()
+    is_jetton = token_type == "jetton"
+    if user_lang == "ru":
+        first = "Это джеттон в экосистеме TON." if is_jetton else "Это токен в экосистеме TON."
+        second = "Обзор сформирован только по подтверждённым данным выше, без дополнительных предположений."
+        return f"{first} {second}"
+    first = "This is a TON ecosystem jetton." if is_jetton else "This is a TON ecosystem token."
+    second = "This overview is based only on the verified data shown above, with no additional assumptions."
+    return f"{first} {second}"
 
 
 def _is_ticker_context_strong(text: str) -> bool:
@@ -807,6 +828,8 @@ async def chat(request: ChatRequest, api_key: str = Depends(verify_api_key)):
     if ticker_mode and ticker_data:
         ticker_facts_text = _build_ticker_facts_block(ticker_data, ticker_symbol, user_lang)
         ticker_analysis_heading = "\n💡 Обзор:" if user_lang == "ru" else "\n💡 Overview:"
+        deterministic_overview = _build_deterministic_ticker_overview(ticker_data, user_lang)
+        return stream_text_response(f"{ticker_facts_text}\n\n{ticker_analysis_heading}\n{deterministic_overview}")
 
     # STEP 2: Try general RAG query if not in ticker mode
     if RAG_URL and not ticker_mode and user_last:
@@ -836,52 +859,40 @@ async def chat(request: ChatRequest, api_key: str = Depends(verify_api_key)):
     
     if ticker_mode and ticker_data:
         # Ticker mode: facts are rendered deterministically; LLM writes analysis only.
-        total_supply_raw = _to_int(ticker_data.get("total_supply"))
-        holders_raw = _to_int(ticker_data.get("holders"))
-        tx_24h_raw = _to_int(ticker_data.get("tx_24h"))
-
-        facts = {
+        # Build MINIMAL facts for overview generation (no numbers to tempt the model)
+        facts_for_overview = {
             "symbol": ticker_data.get("symbol") or ticker_symbol,
-            "name": ticker_data.get("name") or "Unknown",
-            "type": ticker_data.get("type") or "Unknown",
-            "total_supply": ticker_data.get("total_supply"),
-            "total_supply_formatted": _format_int_with_commas(total_supply_raw),
-            "holders": ticker_data.get("holders"),
-            "holders_formatted": _format_int_with_commas(holders_raw),
-            "tx_24h": ticker_data.get("tx_24h"),
-            "tx_24h_formatted": _format_int_with_commas(tx_24h_raw),
-            "last_activity": ticker_data.get("last_activity"),
-            "decimals": ticker_data.get("decimals"),
-            "source": _resolve_token_source(ticker_data),
+            "type": ticker_data.get("type") or "token",
         }
-
-        # Remove None values
-        facts = {k: v for k, v in facts.items() if v is not None}
-
-        # If tx_24h is missing, remove transaction fields so model cannot infer activity.
-        if tx_24h_raw is None:
-            facts.pop("tx_24h", None)
-            facts.pop("tx_24h_formatted", None)
+        
+        # Only add last_activity if present (to allow "recent activity" context)
+        last_activity = ticker_data.get("last_activity")
+        if last_activity:
+            facts_for_overview["last_activity"] = last_activity
 
         ticker_prompt = (
             f"Reply ONLY in {'Russian' if user_lang == 'ru' else 'English'}.\n"
-            "Write a professional overview in 2-3 sentences that provides context and insight.\n"
-            "Focus on what makes this token notable: community size, adoption, recent activity patterns.\n"
-            "Use ONLY facts from <REFERENCE_FACTS>.\n"
-            "Do NOT rewrite or restate the metrics that are already shown above.\n"
-            "Do NOT modify, recalculate, or normalize any numeric value.\n"
-            "Do NOT invent missing metrics, events, or activity.\n"
-            "If tx_24h is absent/null in <REFERENCE_FACTS>, do not mention transactions.\n"
-            "If data is missing, explicitly say it is not available.\n"
-            "Write in a professional, informative tone - not promotional.\n"
-            "Example good overview: 'DOGS demonstrates strong community distribution with nearly 5M holders, indicating broad retail adoption. Recent activity suggests sustained interest in the TON ecosystem.'\n"
-            "Example bad overview: 'The token has 545,217,356,060,904,508,815 total supply and 4,900,876 holders.' (this just repeats the metrics)\n"
-            "No JSON, no bullet list, no tags in output."
+            "Write 2-4 sentences of safe qualitative analysis for this token type.\n"
+            "\n"
+            "STRICT RULES:\n"
+            "- DO NOT mention any numbers, metrics, or statistics\n"
+            "- DO NOT repeat facts already shown above\n"
+            "- DO NOT invent facts not in <REFERENCE_FACTS> (no claims about Telegram, exchanges, listings, control, profitability, mass adoption)\n"
+            "- DO NOT use any non-Russian characters if Russian mode (no English, Chinese, Arabic, etc.)\n"
+            "- DO NOT use any non-English characters if English mode (no Russian, Chinese, etc.)\n"
+            "- Focus ONLY on general characteristics that apply to this TOKEN TYPE\n"
+            "- Do NOT make claims about specific adoption, popularity, or success\n"
+            "\n"
+            "If you cannot write 2-4 safe sentences with the data provided, output exactly:\n"
+            f"{'Недостаточно данных для анализа.' if user_lang == 'ru' else 'Insufficient data for analysis.'}\n"
+            "\n"
+            "Good example (EN): 'This jetton operates within the TON blockchain ecosystem. The token structure indicates standard fungible asset characteristics.'\n"
+            "Bad example (EN): 'This token has massive adoption with millions of holders.' (invents claims not in data)\n"
         )
         
         reference_facts = (
             "<REFERENCE_FACTS>\n"
-            + json.dumps(facts, ensure_ascii=False, indent=2)
+            + json.dumps(facts_for_overview, ensure_ascii=False, indent=2)
             + "\n</REFERENCE_FACTS>"
         )
         
@@ -978,9 +989,7 @@ async def chat(request: ChatRequest, api_key: str = Depends(verify_api_key)):
     def _combine_ticker_output(narrative: str) -> str:
         if not ticker_facts_text:
             return narrative
-        narrative_clean = (narrative or "").strip()
-        if not narrative_clean:
-            return ticker_facts_text
+        narrative_clean = _sanitize_ticker_narrative(narrative, user_lang)
         return f"{ticker_facts_text}\n\n{ticker_analysis_heading}\n{narrative_clean}"
 
     async def generate_ollama_response():
@@ -1040,8 +1049,10 @@ async def chat(request: ChatRequest, api_key: str = Depends(verify_api_key)):
                                     first_token_logged = True
 
                                 full_response += content
-                                # Keep token chunks non-terminal so clients wait for final `response` payload.
-                                yield json.dumps({"token": content, "done": False}) + "\n"
+                                # In ticker mode, buffer narrative and emit only vetted final output.
+                                if not ticker_facts_text:
+                                    # Keep token chunks non-terminal so clients wait for final `response` payload.
+                                    yield json.dumps({"token": content, "done": False}) + "\n"
 
                         if data.get("done", False):
                             total_ms = int((time.perf_counter() - inference_start) * 1000)
@@ -1127,7 +1138,9 @@ async def chat(request: ChatRequest, api_key: str = Depends(verify_api_key)):
                                 logger.info(f"First token: {ttft_ms}ms, model={model}")
                                 first_token_logged = True
                             full_response += content
-                            yield json.dumps({"token": content, "done": False}) + "\n"
+                            # In ticker mode, buffer narrative and emit only vetted final output.
+                            if not ticker_facts_text:
+                                yield json.dumps({"token": content, "done": False}) + "\n"
 
                     total_ms = int((time.perf_counter() - inference_start) * 1000)
                     logger.info(f"Total time: {total_ms}ms, model={model}")
