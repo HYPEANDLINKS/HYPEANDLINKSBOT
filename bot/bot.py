@@ -788,6 +788,9 @@ def main():
     bot_token = os.getenv('BOT_TOKEN')
     if not bot_token:
         raise ValueError("Environment variable 'BOT_TOKEN' is not set")
+    ai_backend_url = (os.getenv('AI_BACKEND_URL') or "http://127.0.0.1:8000").strip().rstrip("/")
+    api_key = os.getenv('API_KEY') or ""
+    key_preview = f"{api_key[:4]}...{api_key[-4:]}" if len(api_key) >= 8 else "(missing/short)"
     
     app = ApplicationBuilder().token(bot_token).post_init(post_init).post_shutdown(shutdown).build()
     app.add_error_handler(error_handler)
@@ -805,6 +808,8 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
     print("Bot starting...")
+    print(f"AI_BACKEND_URL={ai_backend_url}")
+    print(f"API_KEY preview={key_preview}")
     try:
         app.run_polling(drop_pending_updates=True, allowed_updates=Update.ALL_TYPES)
     except Conflict as e:

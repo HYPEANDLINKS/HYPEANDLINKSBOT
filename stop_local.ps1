@@ -10,27 +10,34 @@ param(
 
 $ErrorActionPreference = "SilentlyContinue"
 
-function Kill-Port($port) {
-  Write-Host "Checking port $port..."
+function Get-ListeningPids($port) {
   $lines = netstat -ano | findstr ":$port" | findstr "LISTENING"
-  if (-not $lines) {
-    Write-Host "  No LISTENING process found on port $port."
-    return
-  }
-
+  if (-not $lines) { return @() }
   $pids = @()
   foreach ($line in $lines) {
     $parts = ($line -split "\s+") | Where-Object { $_ -ne "" }
-    # PID is the last column
-    $pid = $parts[-1]
-    if ($pid -match "^\d+$") { $pids += $pid }
+    if ($parts.Count -gt 0) {
+      $procId = $parts[-1]
+      if ($procId -match "^\d+$") { $pids += [int]$procId }
+    }
   }
+  return $pids | Sort-Object -Unique
+}
 
-  $pids = $pids | Sort-Object -Unique
-  foreach ($procId in $pids) {
-    Write-Host "  Killing PID $procId on port $port..."
-    taskkill /PID $procId /F | Out-Null
+function Stop-Pids([int[]]$pids, [string]$reason) {
+  if (-not $pids -or $pids.Count -eq 0) {
+    Write-Host "  No process found for $reason."
+    return
   }
+  foreach ($procId in $pids) {
+    Write-Host "  Killing PID $procId ($reason)..."
+    try { Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue } catch {}
+  }
+}
+
+function Kill-Port($port) {
+  Write-Host "Checking port $port..."
+  Stop-Pids (Get-ListeningPids $port) "port $port"
 }
 
 function Kill-BotProcess {
@@ -44,10 +51,7 @@ function Kill-BotProcess {
   }
 
   $pids = $botProcs | Select-Object -ExpandProperty ProcessId | Sort-Object -Unique
-  foreach ($procId in $pids) {
-    Write-Host "  Killing bot PID $procId..."
-    taskkill /PID $procId /F | Out-Null
-  }
+  Stop-Pids $pids "bot.py"
 }
 
 # Always stop backend + rag
@@ -61,4 +65,12 @@ if ($StopOllama) {
   Write-Host "Skipping Ollama (11434). Use: .\stop_local.ps1 -StopOllama"
 }
 
-Write-Host "Done."
+Write-Host "Done. Active listeners summary:"
+foreach ($port in 8000, 8001, 11434) {
+  $pids = Get-ListeningPids $port
+  if ($pids.Count -gt 0) {
+    Write-Host "  Port $port still in use by PID(s): $($pids -join ', ')"
+  } else {
+    Write-Host "  Port $port is free."
+  }
+}
