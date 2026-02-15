@@ -177,9 +177,15 @@ def _extract_ticker_candidates(text: str) -> List[str]:
         if token.isupper():
             score += 5
         
-        # +3: Has uppercase letter(s)
+        # +3: Has meaningful uppercase signal (not just sentence TitleCase like "Tell")
         elif any(c.isupper() for c in token):
-            score += 3
+            is_titlecase_word = (
+                len(token) > 1
+                and token[0].isupper()
+                and token[1:].islower()
+            )
+            if not is_titlecase_word:
+                score += 3
         
         # +2: Near ticker context words
         if has_ticker_context:
