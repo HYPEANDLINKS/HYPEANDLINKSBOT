@@ -450,11 +450,25 @@ def _narrative_fallback(user_lang: str) -> str:
 
 
 def _sanitize_ticker_narrative(narrative: str, user_lang: str) -> str:
-    text = (narrative or "").strip()
+    text = re.sub(r"\s+", " ", (narrative or "").strip())
     if not text:
         return _narrative_fallback(user_lang)
     # Guardrail: block metric restatements and mixed-script garbage.
     if re.search(r"\d", text) or _CJK_RE.search(text):
+        return _narrative_fallback(user_lang)
+    sentences = [s for s in re.split(r"[.!?]+", text) if s.strip()]
+    if len(sentences) < 2 or len(sentences) > 4:
+        return _narrative_fallback(user_lang)
+    speculative_en = (
+        "will", "guarantee", "guaranteed", "certain", "definitely",
+        "mass adoption", "profit", "moon", "10x", "100x",
+    )
+    speculative_ru = (
+        "будет", "гарант", "точно", "обязательно", "массов",
+        "прибыл", "икс", "рост в", "взлет",
+    )
+    text_lower = text.lower()
+    if any(token in text_lower for token in speculative_en + speculative_ru):
         return _narrative_fallback(user_lang)
     return text
 
@@ -884,12 +898,11 @@ async def chat(request: ChatRequest, api_key: str = Depends(verify_api_key)):
         # If error_code == "not_found" but context is NOT strong,
         # fall through to normal LLM answer (user might be asking about something else)
     
-    # STEP 2: Build deterministic facts block for ticker mode
+    # STEP 2: Build deterministic facts block for ticker mode.
+    # Narrative is generated later by the LLM under strict guardrails.
     if ticker_mode and ticker_data:
         ticker_facts_text = _build_ticker_facts_block(ticker_data, ticker_symbol, user_lang)
         ticker_analysis_heading = "\n💡 Обзор:" if user_lang == "ru" else "\n💡 Overview:"
-        deterministic_overview = _build_deterministic_ticker_overview(ticker_data, user_lang)
-        return stream_text_response(f"{ticker_facts_text}\n\n{ticker_analysis_heading}\n{deterministic_overview}")
 
     # STEP 2: Try general RAG query if not in ticker mode
     if RAG_URL and not ticker_mode and user_last:
