@@ -423,11 +423,19 @@ async def get_token(symbol: str):
         }
 
     stats = data.get("market_stats", {}) if isinstance(data.get("market_stats"), dict) else {}
+    metadata = data.get("metadata") if isinstance(data.get("metadata"), dict) else {}
+    description = _first_non_none(
+        data.get("description"),
+        metadata.get("description"),
+        data.get("about"),
+        data.get("summary"),
+    )
     token = {
         "id": data.get("address"),
         "type": "jetton",
         "symbol": data.get("symbol") or normalized,
         "name": data.get("name"),
+        "description": description,
         "decimals": None,
         # Keep source values as-is; do not fabricate fallback numbers.
         "total_supply": _first_non_none(
