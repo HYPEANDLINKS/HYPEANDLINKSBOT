@@ -443,7 +443,8 @@ $env:OLLAMA_URL     = "http://127.0.0.1:11434"
 $env:OLLAMA_MODEL   = "qwen2.5:1.5b"
 $env:HTTP_PORT      = "8080"
 $frontendPort       = 3000
-$env:BOT_TOKEN      = "8424280939:AAF5LpTE4p1roIU61NWAJJt7dKnYswaNFls"
+$env:BOT_TOKEN      = "8592693295:AAGRdNme_SmkOKbdNSH6uWq-QT4Hf2pRjvY"
+$env:APP_URL        = "http://127.0.0.1:$frontendPort"
 
 # LLM provider auto-selection:
 # - Prefer OpenAI when OPENAI_API_KEY is present

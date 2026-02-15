@@ -1,14 +1,39 @@
 This is a monorepo containing multiple services.
 
-## Local host deploy
+## How to fork and contribute?
 
-Start
+1.Install GitHub CLI and authorize to GitHub from cli for instant work
+
+```
+winget install --id GitHub.cli
+gh auth login
+``
+
+2. Fork the repo, clone it and create a new branch and switch to it
+
+```
+gh repo fork https://github.com/HyperlinksSpace/HyperlinksSpaceBot.git --clone
+git checkout -b new-branch-for-an-update
+git switch -c new-branch-for-an-update
+```
+
+3. After making a commit, make a pull request, gh tool will already know the upstream remote
+
+```
+gh pr create --title "My new PR" --body "It is my best PR"
+```
+
+## Localhost deploy
+
+Create a bot using @BotFather. Copy bot token and set them in the 446th line of start_local.ps1 in the root directory of the project.
+
+Run the script to start on localhost
 
 ```
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:/1/HyperlinksSpaceBot/start_local.ps1" -LogsInServiceWindows
 ```
 
-Stop
+Run the script to stop on localhost
 
 ```
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:/1/HyperlinksSpaceBot/stop_local.ps1"
@@ -17,105 +42,113 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:/1/HyperlinksSpaceBot
 ## Repository Structure
 
 ```
-q1cbbot/
-├── front/          # Flutter frontend
-├── ai/             # AI chat backend (FastAPI, provider via env)
-├── bot/            # Telegram bot (worker)
-└── rag/            # RAG server (FastAPI)
+HyperlinksSpaceBot/
+├── ai/                    # AI backend (FastAPI)
+│   └── backend/
+├── bot/                   # Telegram bot + bot HTTP API
+├── front/                 # Flutter web frontend (Mini App UI)
+├── rag/                   # RAG backend (FastAPI)
+│   └── backend/
+├── docs/                  # Project docs
+├── start_local.ps1        # Main local stack launcher (Windows)
+├── stop_local.ps1         # Local stack stop/cleanup script (Windows)
+├── smoke_test.ps1         # Local smoke checks (PowerShell)
+└── smoke_test.sh          # Local smoke checks (bash)
 ```
 
-## Services
+## Runtime Architecture
 
-### Frontend (`front/`)
-- **Technology**: Flutter Web
-- **Purpose**: Telegram Mini App UI
-- **Deployment**: Railway (configured in `front/railway.json`)
+Local stack runs these services:
 
-### AI Service (`ai/`)
-- **Technology**: FastAPI + env-configurable LLM provider (`ollama` default)
-- **Purpose**: AI chat API
-- **Entry point**: `ai/backend/main.py`
+- `rag/backend` (FastAPI): token/project retrieval for grounding
+- `ai/backend` (FastAPI): chat backend that calls RAG and LLM provider
+- `bot/bot.py`:
+  - Telegram bot polling worker
+  - HTTP API server on port `8080` for frontend calls
+- `front` (Flutter web-server): Mini App frontend on port `3000`
+- `ollama` (optional external/local process): default LLM provider in local mode
 
-### Bot (`bot/`)
-- **Technology**: python-telegram-bot
-- **Purpose**: Telegram interface; calls AI backend only
+Request path in local mode:
 
-### RAG Server (`rag/`)
-- **Technology**: FastAPI
-- **Purpose**: Verified token/project retrieval for AI grounding
+`Frontend -> Bot HTTP API (:8080) -> AI backend (:8000) -> RAG (:8001) [+ Ollama/OpenAI]`
 
-## Railway Deploy
+## Local Scripts
 
-Deploy as 3 services in this order: `rag` -> `ai` -> `bot`.
+### `start_local.ps1`
 
-### Service A: RAG (FastAPI)
+Starts local stack, writes/streams logs, performs readiness checks, and opens frontend in browser when ready.
 
-- **Root directory:** `rag/backend`
-- **Start command:** `uvicorn main:app --host 0.0.0.0 --port $PORT`
-- **Health endpoint:** `/health`
+Supported switches:
 
-Env vars (copy/paste):
+- `-Reload` - enables `uvicorn --reload` for AI and RAG
+- `-ForegroundBot` - runs bot in current terminal (Ctrl+C stops services)
+- `-StopOllama` - stops existing Ollama listener during pre-cleanup
+- `-OpenLogWindows` - opens separate log-tail windows for services
+- `-LogsInServiceWindows` - shows logs in service process windows instead of redirected log files
 
-```env
-TOKENS_API_URL=https://tokens.swap.coffee
-# optional:
-# TOKENS_API_KEY=
-# RAG_STORE_PATH=rag_store.json
-# PROJECTS_STORE_PATH=projects_store.json
-# TOKENS_STORE_PATH=tokens_store.json
-```
+### `stop_local.ps1`
 
-### Service B: AI backend (FastAPI)
+Stops the local stack robustly by:
 
-- **Root directory:** `ai/backend`
-- **Start command:** `uvicorn main:app --host 0.0.0.0 --port $PORT`
-- **Required wiring:** `RAG_URL` must point to Service A URL
+- killing listeners on service ports (`3000`, `8000`, `8001`, `8080`, optionally `11434`)
+- killing known bot/flutter/backend processes
+- killing repo-scoped leftover runtime processes and log-tail windows
 
-Env vars (copy/paste):
+Switch:
 
-```env
-API_KEY=change-me-shared-secret
-RAG_URL=https://your-rag-service.up.railway.app
+- `-KeepOllama` - keeps `11434` listener alive
 
-LLM_PROVIDER=ollama
-OLLAMA_URL=http://127.0.0.1:11434
-OLLAMA_MODEL=qwen2.5:1.5b
+## Local Ports and Health Checks
 
-# optional fallback provider:
-# OPENAI_API_KEY=
-# OPENAI_MODEL=gpt-4o-mini
-```
+- `3000` - frontend (`http://127.0.0.1:3000`)
+- `8000` - AI backend
+- `8001` - RAG backend
+- `8080` - bot HTTP API (`/health`)
+- `11434` - Ollama API (when using `LLM_PROVIDER=ollama`)
 
-Notes:
-- `LLM_PROVIDER=ollama` is the default.
-- In production, Railway usually should point `OLLAMA_URL` to an external Ollama host (VPS/GPU box), not local Railway runtime.
+`start_local.ps1` reports readiness for:
 
-### Service C: Bot (Worker)
+- RAG `/health`
+- AI root endpoint
+- Bot API `/health`
+- Frontend availability
+- Ollama model presence (when Ollama provider is active)
 
-- **Root directory:** `bot`
-- **Start command:** `python bot.py`
-- Bot should only call AI backend: `POST {AI_BACKEND_URL}/api/chat` with `X-API-Key`.
+## Key Environment Variables (Local)
 
-Env vars (copy/paste):
+- `BOT_TOKEN` - Telegram bot token
+- `SELF_API_KEY` / `API_KEY` - shared key between frontend/bot/AI API calls
+- `AI_BACKEND_URL` - defaults to `http://127.0.0.1:8000`
+- `RAG_URL` - defaults to `http://127.0.0.1:8001`
+- `HTTP_PORT` - bot API port (default `8080`)
+- `APP_URL` - URL used for Telegram "Run app" button (defaults to local frontend URL)
+- `LLM_PROVIDER` - `ollama` (default in local script) or `openai`
+- `OLLAMA_URL`, `OLLAMA_MODEL` - Ollama runtime/model settings
+- `OPENAI_API_KEY`, `OPENAI_MODEL` - OpenAI mode settings
 
-```env
-BOT_TOKEN=123456:telegram-token
-DATABASE_URL=postgresql://user:pass@host:5432/db
-AI_BACKEND_URL=https://your-ai-service.up.railway.app
-API_KEY=change-me-shared-secret
-# optional:
-# APP_URL=https://your-frontend-domain
-```
+## Frontend Deploy Flow
 
-## Local Verification Checklist
+Current frontend deploy helper scripts in `front/` are Vercel-oriented:
 
-After starting `rag`, `ai`, and `bot` locally:
+- `front/deploy.sh`
+- `front/deploy.bat`
 
-1. Send `$DOGS`
-2. Send `что такое DOGS?`
-3. Send `$TON`
+`start_local.ps1` also prints this flow after startup:
 
-Confirm:
-- RAG logs show `/tokens/{symbol}` with `200`.
-- AI backend has no `RAG verification failed` for those requests.
-- Bot replies cleanly from AI backend responses.
+1. `cd front`
+2. `bash deploy.sh` (or `.\deploy.bat` on Windows)
+
+## Quick Local Verification
+
+After stack startup:
+
+1. Open `http://127.0.0.1:3000`
+2. Check bot API health: `http://127.0.0.1:8080/health`
+3. In Telegram, run `/start` and tap "Run app"
+4. Send test prompts in chat (for example `$DOGS`, `$TON`)
+
+Expected:
+
+- frontend loads and can call bot API
+- bot answers without API key errors
+- AI backend responds and can access RAG for token lookups

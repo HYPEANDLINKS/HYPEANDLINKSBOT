@@ -10,6 +10,7 @@ from telegram.error import Conflict, TelegramError, NetworkError, TimedOut, Retr
 import asyncpg
 import httpx
 from datetime import datetime, timezone
+from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode
 
 try:
     _dotenv = importlib.import_module("dotenv")
@@ -68,6 +69,32 @@ def build_language_keyboard(message_id: int) -> InlineKeyboardMarkup:
         InlineKeyboardButton("RU", callback_data=f"lang:ru:{message_id}")
     ]]
     return InlineKeyboardMarkup(keyboard)
+
+
+def build_app_launch_url() -> str | None:
+    """Build a valid Mini App URL with mode=fullscreen when APP_URL is configured."""
+    raw = (os.getenv("APP_URL") or "").strip()
+    if not raw:
+        return None
+
+    if "://" not in raw:
+        raw = f"https://{raw}"
+
+    parsed = urlparse(raw)
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        return None
+
+    query = dict(parse_qsl(parsed.query, keep_blank_values=True))
+    query["mode"] = "fullscreen"
+    path = parsed.path or "/"
+    return urlunparse((
+        parsed.scheme,
+        parsed.netloc,
+        path,
+        parsed.params,
+        urlencode(query),
+        parsed.fragment
+    ))
 
 
 async def cancel_stream(chat_id: int, message_id: int) -> None:
@@ -524,16 +551,19 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
 
 
 async def hello(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    # Create inline keyboard with button
-    app_url = os.getenv('APP_URL')
-    keyboard = [
-        [InlineKeyboardButton("Run app", url=f"{app_url}?mode=fullscreen")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
+    app_launch_url = build_app_launch_url()
+    message_text = "That's @HyperlinksSpaceBot, you can use AI in bot and explore the app for more features"
+
+    if app_launch_url:
+        keyboard = [[InlineKeyboardButton("Run app", url=app_launch_url)]]
+        await update.message.reply_text(
+            message_text,
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+        return
+
     await update.message.reply_text(
-        f"That's @HyperlinksSpaceBot, you can use AI in bot and explore the app for more features",
-        reply_markup=reply_markup
+        f"{message_text}\n\nMini app URL is not configured. Set APP_URL (for example via Tunnel/railway.env)."
     )
 
 
